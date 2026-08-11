@@ -1571,7 +1571,24 @@ else
 endif
 
 ensure_adas:
-	@if [ ! -d "${SOLPSTOP}/modules/adas" ] || [ -z "$$(ls -A "${SOLPSTOP}/modules/adas" 2>/dev/null)" ]; then \
-	echo "ADAS directory missing or empty: running fetch_adas_datafiles"; \
+	@adas_module="${SOLPSTOP}/modules/adas"; \
+	adas_cache="${SOLPSTOP}/data.local/adas"; \
+	ratadas_cache="${SOLPSTOP}/data.local/ratadas.filelist"; \
+	module_ok=0; \
+	cache_ok=0; \
+	if [ -d "$$adas_module" ] && [ -n "$$(find "$$adas_module" -type f -print -quit 2>/dev/null)" ]; then \
+	module_ok=1; \
+	fi; \
+	if [ -d "$$adas_cache/adf11" ] && \
+	    [ -d "$$adas_cache/adf15" ] && \
+	    [ -d "$$adas_cache/adas_bundled" ] && \
+	    [ -n "$$(find "$$adas_cache/adf11" -type f -print -quit 2>/dev/null)" ] && \
+	    [ -n "$$(find "$$adas_cache/adf15" -type f -print -quit 2>/dev/null)" ] && \
+	    [ -n "$$(find "$$adas_cache/adas_bundled" -type f -print -quit 2>/dev/null)" ] && \
+	    [ -s "$$ratadas_cache" ]; then \
+	cache_ok=1; \
+	fi; \
+	if [ "$$module_ok" -ne 1 ] && [ "$$cache_ok" -ne 1 ]; then \
+	echo "ADAS data cache missing or incomplete: running fetch_adas_datafiles"; \
 	fetch_adas_datafiles; \
 	fi
