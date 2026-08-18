@@ -248,6 +248,9 @@ contains
         enddo
       endif
       nc = max(mpg%nXpt,1)
+      if (b2mwti_save_mode(mpg).ne.B2TIME_SAVE_MODE_CLASSICAL) then
+        call write_b2timenc_cell_list(mpg,geo,target_offset)
+      endif
       if (nimp.gt.0) then
         if (.not. allocated(dsi)) then
           allocate(dsi(1:nimp))
@@ -3531,6 +3534,725 @@ contains
    &  b2mwti_user_group_source().eq.B2TIME_USER_GROUP_SOURCE_FACE_LIST
     return
   end function b2mwti_use_user_group_face_list
+
+  integer function b2mwti_target_count(mpg)
+    use b2mod_user_namelist, only : ntarget_fclbl, ntarget_face_group
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+    integer, allocatable :: regs(:), order(:)
+    integer :: nmax, ntrg
+
+    b2mwti_target_count = max(1,mpg%nXpt)
+    if (b2mwti_use_user_group(mpg)) then
+      if (b2mwti_user_group_source().eq. &
+       B2TIME_USER_GROUP_SOURCE_FACE_LIST) then
+        b2mwti_target_count = max(1,ntarget_face_group)
+      else
+        b2mwti_target_count = max(1,ntarget_fclbl)
+      endif
+    else if (b2mwti_use_auto_group(mpg)) then
+      nmax = 1
+      if (allocated(mpg%divFc)) nmax = max(1,size(mpg%divFc))
+      allocate(regs(nmax),order(nmax))
+      call get_target_fcreg_order(mpg,ntrg,regs,order)
+      b2mwti_target_count = max(1,ntrg)
+      deallocate(regs,order)
+    endif
+    return
+  end function b2mwti_target_count
+
+  subroutine get_target_fcreg_order(mpg,ntrg,target_regs,div_order)
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+    integer, intent(out) :: ntrg
+    integer, intent(out) :: target_regs(:), div_order(:)
+    integer :: i, j, regtmp, divtmp, iFc, reg
+
+    ntrg = 0
+    target_regs = 0
+    div_order = 0
+    if (.not.allocated(mpg%divFc)) return
+    if (.not.allocated(mpg%fcReg)) return
+
+    do i = 1, size(mpg%divFc)
+      iFc = mpg%divFc(i)
+      if (iFc.le.0) cycle
+      if (iFc.gt.size(mpg%fcReg)) cycle
+      reg = mpg%fcReg(iFc)
+      if (reg.le.0) cycle
+      if (ntrg.gt.0) then
+        if (any(target_regs(1:ntrg).eq.reg)) cycle
+      endif
+      ntrg = ntrg + 1
+      if (ntrg.gt.size(target_regs)) exit
+      target_regs(ntrg) = reg
+      div_order(ntrg) = reg
+    enddo
+
+    do i = 1, ntrg-1
+      do j = i+1, ntrg
+        if (target_regs(j).lt.target_regs(i)) then
+          regtmp = target_regs(i)
+          target_regs(i) = target_regs(j)
+          target_regs(j) = regtmp
+          divtmp = div_order(i)
+          div_order(i) = div_order(j)
+          div_order(j) = divtmp
+        endif
+      enddo
+    enddo
+    return
+  end subroutine get_target_fcreg_order
+
+  subroutine get_user_group_face_list(mpg,itgt,faces,nfaces, &
+   group_id,group_name)
+    use b2mod_user_namelist, only : ntarget_fclbl, target_fclbl_list, &
+         target_fclbl_name_list, ntarget_face_group, &
+         target_face_group_sizes, target_face_group_list, &
+         target_face_group_name_list
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+    integer, intent(in) :: itgt
+    integer, intent(out) :: faces(:), nfaces, group_id
+    character*32, intent(out) :: group_name
+    integer :: ibc, iFc, istart, nloc
+
+    faces = 0
+    nfaces = 0
+    group_id = 0
+    group_name = ' '
+
+    select case (b2mwti_user_group_source())
+    case (B2TIME_USER_GROUP_SOURCE_FCLBL)
+      if (itgt.lt.1 .or. itgt.gt.ntarget_fclbl) return
+      if (.not.allocated(mpg%bcFc)) return
+      if (.not.allocated(mpg%fcLbl)) return
+      group_id = target_fclbl_list(itgt)
+      group_name = target_fclbl_name_list(itgt)
+      do ibc = 1, size(mpg%bcFc)
+        iFc = mpg%bcFc(ibc)
+        if (iFc.le.0) cycle
+        if (iFc.gt.size(mpg%fcLbl)) cycle
+        if (mpg%fcLbl(iFc).ne.group_id) cycle
+        nfaces = nfaces + 1
+        if (nfaces.le.size(faces)) faces(nfaces) = iFc
+      enddo
+    case (B2TIME_USER_GROUP_SOURCE_FACE_LIST)
+      if (itgt.lt.1 .or. itgt.gt.ntarget_face_group) return
+      group_id = itgt
+      group_name = target_face_group_name_list(itgt)
+      istart = 1
+      if (itgt.gt.1) istart = 1 + sum(target_face_group_sizes(1:itgt-1))
+      if (istart.lt.1 .or. istart.gt.size(target_face_group_list)) return
+      nloc = max(0,target_face_group_sizes(itgt))
+      nloc = min(nloc,size(target_face_group_list)-istart+1)
+      nfaces = min(nloc,size(faces))
+      if (nfaces.gt.0) then
+        faces(1:nfaces) = &
+   &     target_face_group_list(istart:istart+nfaces-1)
+      endif
+    end select
+    return
+  end subroutine get_user_group_face_list
+
+  integer function plasma_adjacent_cv(mpg,iFc)
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+    integer, intent(in) :: iFc
+
+    plasma_adjacent_cv = 0
+    if (iFc.le.0) return
+    if (.not.allocated(mpg%fcCv)) return
+    if (iFc.gt.size(mpg%fcCv,1)) return
+    if (mpg%fcCv(iFc,1).gt.0.and.mpg%fcCv(iFc,1).le.mpg%nCi) then
+      plasma_adjacent_cv = mpg%fcCv(iFc,1)
+    else if (mpg%fcCv(iFc,2).gt.0.and. &
+   &         mpg%fcCv(iFc,2).le.mpg%nCi) then
+      plasma_adjacent_cv = mpg%fcCv(iFc,2)
+    endif
+    return
+  end function plasma_adjacent_cv
+
+  integer function offset_target_cv(mpg,iFc,target_offset)
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+    integer, intent(in) :: iFc, target_offset
+
+    offset_target_cv = 0
+    if (iFc.le.0) return
+    if (.not.allocated(mpg%fcCv)) return
+    if (iFc.gt.size(mpg%fcCv,1)) return
+    if ((mpg%fcCv(iFc,1).gt.mpg%nCi.and.target_offset.eq.0).or. &
+   &    (mpg%fcCv(iFc,1).le.mpg%nCi.and.target_offset.eq.1)) then
+      offset_target_cv = mpg%fcCv(iFc,1)
+    else
+      offset_target_cv = mpg%fcCv(iFc,2)
+    endif
+    return
+  end function offset_target_cv
+
+  subroutine get_separatrix_fs_ids(mpg, sep_fs)
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+    integer, intent(out) :: sep_fs(2)
+    integer :: i, n_unique
+    integer, allocatable :: unique_fs(:)
+
+    sep_fs = 0
+    if (mpg%iFssep.ne.0 .or. mpg%iFssep2.ne.0) then
+      sep_fs(1) = mpg%iFssep
+      sep_fs(2) = mpg%iFssep2
+      return
+    endif
+    if (.not.allocated(mpg%XptFsID)) return
+    if (size(mpg%XptFsID).eq.0) return
+
+    allocate(unique_fs(size(mpg%XptFsID)))
+    unique_fs = 0
+    n_unique = 0
+    do i = 1, size(mpg%XptFsID)
+      if (mpg%XptFsID(i).le.0) cycle
+      if (n_unique.gt.0) then
+        if (any(unique_fs(1:n_unique).eq.mpg%XptFsID(i))) cycle
+      endif
+      n_unique = n_unique + 1
+      unique_fs(n_unique) = mpg%XptFsID(i)
+    enddo
+
+    if (n_unique.eq.1) then
+      sep_fs(1) = unique_fs(1)
+    else if (n_unique.ge.2) then
+      if (allocated(mpg%isPrimaryXpt)) then
+        do i = 1, size(mpg%XptFsID)
+          if (mpg%isPrimaryXpt(i).eq.1.and.mpg%XptFsID(i).gt.0) then
+            sep_fs(1) = mpg%XptFsID(i)
+            exit
+          endif
+        enddo
+      endif
+      if (sep_fs(1).eq.0) sep_fs(1) = unique_fs(1)
+      do i = 1, n_unique
+        if (unique_fs(i).ne.sep_fs(1)) then
+          sep_fs(2) = unique_fs(i)
+          exit
+        endif
+      enddo
+    endif
+    deallocate(unique_fs)
+    return
+  end subroutine get_separatrix_fs_ids
+
+  logical function cv_touches_separatrix(mpg,iCv)
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+    integer, intent(in) :: iCv
+    integer :: j, iFc, sep_fs(2)
+
+    cv_touches_separatrix = .false.
+    if (iCv.le.0) return
+    if (.not.allocated(mpg%cvFcP)) return
+    if (.not.allocated(mpg%cvFc)) return
+    if (.not.allocated(mpg%fcFs)) return
+    if (iCv.gt.size(mpg%cvFcP,1)) return
+    call get_separatrix_fs_ids(mpg, sep_fs)
+    do j = mpg%cvFcP(iCv,1), mpg%cvFcP(iCv,1)+mpg%cvFcP(iCv,2)-1
+      if (j.le.0 .or. j.gt.size(mpg%cvFc)) cycle
+      iFc = mpg%cvFc(j)
+      if (iFc.le.0 .or. iFc.gt.size(mpg%fcFs)) cycle
+      if ((mpg%fcFs(iFc).eq.sep_fs(1).and.sep_fs(1).ne.0).or. &
+   &      (mpg%fcFs(iFc).eq.sep_fs(2).and.sep_fs(2).ne.0)) then
+        cv_touches_separatrix = .true.
+        return
+      endif
+    enddo
+    return
+  end function cv_touches_separatrix
+
+  subroutine collect_separatrix_vertices(mpg,sep_fs,sep_vertices, &
+   is_sep_vertex)
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+    integer, intent(in) :: sep_fs(2)
+    integer, intent(out) :: sep_vertices(:)
+    logical, intent(inout) :: is_sep_vertex(:)
+    integer :: iVx, iFc, i, j, v1, v2
+
+    sep_vertices = 0
+    is_sep_vertex = .false.
+    j = 0
+    if (.not.allocated(mpg%fcFs)) return
+    if (.not.allocated(mpg%fcVx)) return
+    do iFc = 1, min(mpg%nFc,size(mpg%fcFs))
+      if (iFc.gt.size(mpg%fcVx,1)) cycle
+      do i = 1, 2
+        if (sep_fs(i).le.0) cycle
+        if (mpg%fcFs(iFc).ne.sep_fs(i)) cycle
+        v1 = mpg%fcVx(iFc,1)
+        v2 = mpg%fcVx(iFc,2)
+        if (v1.gt.0.and.v1.le.size(is_sep_vertex)) then
+          is_sep_vertex(v1) = .true.
+        endif
+        if (v2.gt.0.and.v2.le.size(is_sep_vertex)) then
+          is_sep_vertex(v2) = .true.
+        endif
+      enddo
+    enddo
+    do iVx = 1, min(mpg%nVx,size(is_sep_vertex))
+      if (.not.is_sep_vertex(iVx)) cycle
+      j = j + 1
+      if (j.le.size(sep_vertices)) sep_vertices(j) = iVx
+    enddo
+    return
+  end subroutine collect_separatrix_vertices
+
+  real(kind=R8) function min_vertex_distance2(geo,iVx,sep_vertices)
+    use b2us_geo
+    implicit none
+    type (geometry), intent(in) :: geo
+    integer, intent(in) :: iVx
+    integer, intent(in) :: sep_vertices(:)
+    integer :: j, jVx
+    real(kind=R8) :: dx, dy
+
+    min_vertex_distance2 = huge(1.0_R8)
+    if (iVx.le.0) return
+    if (.not.allocated(geo%vxX)) return
+    if (.not.allocated(geo%vxY)) return
+    if (iVx.gt.size(geo%vxX)) return
+    if (iVx.gt.size(geo%vxY)) return
+    do j = 1, size(sep_vertices)
+      jVx = sep_vertices(j)
+      if (jVx.le.0) cycle
+      if (jVx.gt.size(geo%vxX)) cycle
+      if (jVx.gt.size(geo%vxY)) cycle
+      dx = geo%vxX(iVx) - geo%vxX(jVx)
+      dy = geo%vxY(iVx) - geo%vxY(jVx)
+      min_vertex_distance2 = min(min_vertex_distance2,dx*dx + dy*dy)
+    enddo
+    return
+  end function min_vertex_distance2
+
+  integer function common_face_vertex(mpg,iFc1,iFc2)
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+    integer, intent(in) :: iFc1, iFc2
+    integer :: a1, a2, b1, b2
+
+    common_face_vertex = 0
+    if (iFc1.le.0 .or. iFc2.le.0) return
+    if (.not.allocated(mpg%fcVx)) return
+    if (iFc1.gt.size(mpg%fcVx,1)) return
+    if (iFc2.gt.size(mpg%fcVx,1)) return
+    a1 = mpg%fcVx(iFc1,1)
+    a2 = mpg%fcVx(iFc1,2)
+    b1 = mpg%fcVx(iFc2,1)
+    b2 = mpg%fcVx(iFc2,2)
+    if (a1.eq.b1 .or. a1.eq.b2) then
+      common_face_vertex = a1
+    else if (a2.eq.b1 .or. a2.eq.b2) then
+      common_face_vertex = a2
+    endif
+    return
+  end function common_face_vertex
+
+  integer function nearest_sep_vertex_for_face(mpg,geo,iFc,sep_vertices)
+    use b2us_geo
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+    type (geometry), intent(in) :: geo
+    integer, intent(in) :: iFc
+    integer, intent(in) :: sep_vertices(:)
+    integer :: i, iVx, iVx1, iVx2
+    real(kind=R8) :: d2, best_d2
+
+    nearest_sep_vertex_for_face = 0
+    if (iFc.le.0) return
+    if (.not.allocated(mpg%fcVx)) return
+    if (iFc.gt.size(mpg%fcVx,1)) return
+    iVx1 = mpg%fcVx(iFc,1)
+    iVx2 = mpg%fcVx(iFc,2)
+    best_d2 = huge(1.0_R8)
+    if (.not.allocated(geo%vxX)) return
+    if (.not.allocated(geo%vxY)) return
+    do i = 1, size(sep_vertices)
+      iVx = sep_vertices(i)
+      if (iVx.le.0) cycle
+      if (iVx.gt.size(geo%vxX)) cycle
+      if (iVx.gt.size(geo%vxY)) cycle
+      if (iVx1.gt.0.and.iVx1.le.size(geo%vxX).and. &
+   &      iVx1.le.size(geo%vxY)) then
+        d2 = (geo%vxX(iVx1)-geo%vxX(iVx))**2 + &
+   &         (geo%vxY(iVx1)-geo%vxY(iVx))**2
+        if (d2.lt.best_d2) then
+          best_d2 = d2
+          nearest_sep_vertex_for_face = iVx
+        endif
+      endif
+      if (iVx2.gt.0.and.iVx2.le.size(geo%vxX).and. &
+   &      iVx2.le.size(geo%vxY)) then
+        d2 = (geo%vxX(iVx2)-geo%vxX(iVx))**2 + &
+   &         (geo%vxY(iVx2)-geo%vxY(iVx))**2
+        if (d2.lt.best_d2) then
+          best_d2 = d2
+          nearest_sep_vertex_for_face = iVx
+        endif
+      endif
+    enddo
+    return
+  end function nearest_sep_vertex_for_face
+
+  subroutine select_pair_from_face_list(mpg,geo,faces,nfaces, &
+   target_offset,sep_vertices,is_sep_vertex,iFc1_out,iFc2_out, &
+   iCv1_out,iCv2_out,cv1_out,cv2_out,iVxsp_out,nmatch)
+    use b2us_geo
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+    type (geometry), intent(in) :: geo
+    integer, intent(in) :: faces(:), nfaces, target_offset
+    integer, intent(in) :: sep_vertices(:)
+    logical, intent(in) :: is_sep_vertex(:)
+    integer, intent(out) :: iFc1_out, iFc2_out, iCv1_out, iCv2_out
+    integer, intent(out) :: cv1_out, cv2_out, iVxsp_out, nmatch
+    integer :: j, k, iFc1, iFc2, idx_best, idx_pair, iVx, iVxbest
+    real(kind=R8) :: d2, best_d2
+
+    iFc1_out = 0
+    iFc2_out = 0
+    iCv1_out = 0
+    iCv2_out = 0
+    cv1_out = 0
+    cv2_out = 0
+    iVxsp_out = 0
+    nmatch = 0
+    if (nfaces.le.0) return
+
+    if (allocated(mpg%strVx)) then
+      do j = 1, nfaces-1
+        iFc1 = faces(j)
+        if (iFc1.le.0) cycle
+        do k = j+1, nfaces
+          iFc2 = faces(k)
+          if (iFc2.le.0) cycle
+          iVx = common_face_vertex(mpg,iFc1,iFc2)
+          if (iVx.le.0) cycle
+          if (.not.any(mpg%strVx.eq.iVx)) cycle
+          nmatch = nmatch + 1
+          if (iFc1_out.eq.0) then
+            iFc1_out = iFc1
+            iFc2_out = iFc2
+            iVxsp_out = iVx
+          endif
+        enddo
+      enddo
+    endif
+
+    if (iFc1_out.eq.0) then
+      nmatch = 0
+      do j = 1, nfaces-1
+        iFc1 = faces(j)
+        if (iFc1.le.0) cycle
+        do k = j+1, nfaces
+          iFc2 = faces(k)
+          if (iFc2.le.0) cycle
+          iVx = common_face_vertex(mpg,iFc1,iFc2)
+          if (iVx.le.0) cycle
+          if (iVx.gt.size(is_sep_vertex)) cycle
+          if (.not.is_sep_vertex(iVx)) cycle
+          nmatch = nmatch + 1
+          if (iFc1_out.eq.0) then
+            iFc1_out = iFc1
+            iFc2_out = iFc2
+            iVxsp_out = iVx
+          endif
+        enddo
+      enddo
+    endif
+
+    if (iFc1_out.eq.0) then
+      idx_best = 0
+      iVxbest = 0
+      best_d2 = huge(1.0_R8)
+      do j = 1, nfaces
+        iFc1 = faces(j)
+        if (iFc1.le.0) cycle
+        if (.not.allocated(mpg%fcVx)) cycle
+        if (iFc1.gt.size(mpg%fcVx,1)) cycle
+        d2 = min_vertex_distance2(geo,mpg%fcVx(iFc1,1),sep_vertices)
+        if (d2.lt.best_d2) then
+          best_d2 = d2
+          idx_best = j
+          iVxbest = nearest_sep_vertex_for_face(mpg,geo,iFc1,sep_vertices)
+        endif
+        d2 = min_vertex_distance2(geo,mpg%fcVx(iFc1,2),sep_vertices)
+        if (d2.lt.best_d2) then
+          best_d2 = d2
+          idx_best = j
+          iVxbest = nearest_sep_vertex_for_face(mpg,geo,iFc1,sep_vertices)
+        endif
+      enddo
+      if (idx_best.le.0) return
+      if (idx_best.lt.nfaces) then
+        idx_pair = idx_best + 1
+      else if (idx_best.gt.1) then
+        idx_pair = idx_best - 1
+      else
+        idx_pair = 0
+      endif
+      if (idx_pair.le.0) return
+      iFc1_out = faces(idx_best)
+      iFc2_out = faces(idx_pair)
+      iVxsp_out = common_face_vertex(mpg,iFc1_out,iFc2_out)
+      if (iVxsp_out.le.0) iVxsp_out = iVxbest
+    endif
+
+    iCv1_out = plasma_adjacent_cv(mpg,iFc1_out)
+    iCv2_out = plasma_adjacent_cv(mpg,iFc2_out)
+    cv1_out = offset_target_cv(mpg,iFc1_out,target_offset)
+    cv2_out = offset_target_cv(mpg,iFc2_out,target_offset)
+    return
+  end subroutine select_pair_from_face_list
+
+  subroutine find_target_strike_pair_user_group(mpg,geo,itgt, &
+   target_offset,iFc1_out,iFc2_out,iCv1_out,iCv2_out,cv1_out, &
+   cv2_out,iVxsp_out,nmatch)
+    use b2mod_user_namelist, only : ntarget_face_group_list_max
+    use b2us_geo
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+    type (geometry), intent(in) :: geo
+    integer, intent(in) :: itgt, target_offset
+    integer, intent(out) :: iFc1_out, iFc2_out, iCv1_out, iCv2_out
+    integer, intent(out) :: cv1_out, cv2_out, iVxsp_out, nmatch
+    integer :: sep_fs(2), nfaces, group_id
+    integer, allocatable :: sep_vertices(:), faces(:)
+    logical, allocatable :: is_sep_vertex(:)
+    character*32 :: group_name
+
+    iFc1_out = 0
+    iFc2_out = 0
+    iCv1_out = 0
+    iCv2_out = 0
+    cv1_out = 0
+    cv2_out = 0
+    iVxsp_out = 0
+    nmatch = 0
+    if (.not.allocated(mpg%bcFc)) return
+    call get_separatrix_fs_ids(mpg, sep_fs)
+    if (all(sep_fs.eq.0)) return
+    allocate(is_sep_vertex(max(1,mpg%nVx)))
+    allocate(sep_vertices(max(1,mpg%nVx)))
+    allocate(faces(max(size(mpg%bcFc),ntarget_face_group_list_max)))
+    call collect_separatrix_vertices(mpg,sep_fs,sep_vertices, &
+   & is_sep_vertex)
+    call get_user_group_face_list(mpg,itgt,faces,nfaces,group_id, &
+   & group_name)
+    call select_pair_from_face_list(mpg,geo,faces,nfaces,target_offset, &
+   & sep_vertices,is_sep_vertex,iFc1_out,iFc2_out,iCv1_out,iCv2_out, &
+   & cv1_out,cv2_out,iVxsp_out,nmatch)
+    deallocate(sep_vertices,faces,is_sep_vertex)
+    return
+  end subroutine find_target_strike_pair_user_group
+
+  subroutine find_target_strike_pair_fcreg(mpg,geo,target_fcreg, &
+   target_offset,iFc1_out,iFc2_out,iCv1_out,iCv2_out,cv1_out, &
+   cv2_out,iVxsp_out,nmatch)
+    use b2us_geo
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+    type (geometry), intent(in) :: geo
+    integer, intent(in) :: target_fcreg, target_offset
+    integer, intent(out) :: iFc1_out, iFc2_out, iCv1_out, iCv2_out
+    integer, intent(out) :: cv1_out, cv2_out, iVxsp_out, nmatch
+    integer :: sep_fs(2), j, iFc, nfaces
+    integer, allocatable :: sep_vertices(:), faces(:)
+    logical, allocatable :: is_sep_vertex(:)
+
+    iFc1_out = 0
+    iFc2_out = 0
+    iCv1_out = 0
+    iCv2_out = 0
+    cv1_out = 0
+    cv2_out = 0
+    iVxsp_out = 0
+    nmatch = 0
+    if (.not.allocated(mpg%divFc)) return
+    if (.not.allocated(mpg%fcReg)) return
+    call get_separatrix_fs_ids(mpg, sep_fs)
+    if (all(sep_fs.eq.0)) return
+
+    allocate(is_sep_vertex(max(1,mpg%nVx)))
+    allocate(sep_vertices(max(1,mpg%nVx)))
+    allocate(faces(max(1,size(mpg%divFc))))
+    call collect_separatrix_vertices(mpg,sep_fs,sep_vertices, &
+   & is_sep_vertex)
+    nfaces = 0
+    do j = 1, size(mpg%divFc)
+      iFc = mpg%divFc(j)
+      if (iFc.le.0) cycle
+      if (iFc.gt.size(mpg%fcReg)) cycle
+      if (mpg%fcReg(iFc).ne.target_fcreg) cycle
+      nfaces = nfaces + 1
+      faces(nfaces) = iFc
+    enddo
+    call select_pair_from_face_list(mpg,geo,faces,nfaces,target_offset, &
+   & sep_vertices,is_sep_vertex,iFc1_out,iFc2_out,iCv1_out,iCv2_out, &
+   & cv1_out,cv2_out,iVxsp_out,nmatch)
+    deallocate(sep_vertices,faces,is_sep_vertex)
+    return
+  end subroutine find_target_strike_pair_fcreg
+
+  subroutine write_b2timenc_cell_list(mpg,geo,target_offset)
+    use b2mod_user_namelist, only : nomp, nimp, omp, imp, &
+         icsepomp, icsepimp, ntarget_face_group_list_max
+    use b2us_geo
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+    type (geometry), intent(in) :: geo
+    integer, intent(in) :: target_offset
+    integer :: itgt, iFc, nfaces, nmatch, save_mode, group_id
+    integer :: nfacebuf
+    integer :: ntrg, j
+    integer, allocatable :: regs(:), order(:)
+    integer, allocatable :: faces(:)
+    integer :: iFc1, iFc2, iCv1, iCv2, cvtrg1, cvtrg2, iVxsp
+    character*32 :: group_name
+
+    save_mode = b2mwti_save_mode(mpg)
+    open(99,file='../cell_list_b2timenc',status='replace')
+    write(99,'(a)') '[midplane_separatrix]'
+    if (nomp.gt.0 .and. icsepomp.gt.1) then
+      write(99,'(a,2(1x,i0))') 'omp_sep_cells =', &
+   &   omp(icsepomp-1), omp(icsepomp)
+    else
+      write(99,'(a)') 'omp_sep_cells ='
+    endif
+    if (nimp.gt.0 .and. icsepimp.gt.1) then
+      write(99,'(a,2(1x,i0))') 'imp_sep_cells =', &
+   &   imp(icsepimp-1), imp(icsepimp)
+    else
+      write(99,'(a)') 'imp_sep_cells ='
+    endif
+
+    write(99,'(a)') '[target_quantities]'
+    select case (save_mode)
+    case (B2TIME_SAVE_MODE_USER_GROUP)
+      write(99,'(a)') 'save_mode = user_group'
+      if (b2mwti_use_user_group_fclbl(mpg)) then
+        write(99,'(a)') 'target_group_source = fclbl'
+      else if (b2mwti_use_user_group_face_list(mpg)) then
+        write(99,'(a)') 'target_group_source = face_list'
+      endif
+      if (b2mwti_use_user_group_fclbl(mpg) .and. &
+     &    .not.allocated(mpg%bcFc)) then
+        write(99,'(a)') 'no boundary face list available'
+      else
+        nfacebuf = ntarget_face_group_list_max
+        if (allocated(mpg%bcFc)) nfacebuf = max(nfacebuf,size(mpg%bcFc))
+        allocate(faces(max(1,nfacebuf)))
+        do itgt = 1, b2mwti_target_count(mpg)
+          call get_user_group_face_list(mpg,itgt,faces,nfaces, &
+   &       group_id,group_name)
+          write(99,'(a,1x,i0)') 'target_group_index =', itgt
+          write(99,'(a,1x,i0)') 'target_group_id =', group_id
+          if (len_trim(group_name).gt.0) then
+            write(99,'(a,1x,a)') 'target_group_name =', trim(group_name)
+          endif
+          if (b2mwti_use_user_group_fclbl(mpg)) then
+            write(99,'(a,1x,i0)') 'target_fclbl =', group_id
+          endif
+          call find_target_strike_pair_user_group(mpg,geo,itgt, &
+   &       target_offset,iFc1,iFc2,iCv1,iCv2,cvtrg1,cvtrg2, &
+   &       iVxsp,nmatch)
+          write(99,'(a,1x,i0)') 'sept_target_vertex_index =', iVxsp
+          write(99,'(a,1x,2(i0,1x))') 'sept_target_face_indices =', &
+   &       iFc1, iFc2
+          write(99,'(a,1x,2(i0,1x))') &
+   &       'sept_target_plasma_cv_indices =', iCv1, iCv2
+          write(99,'(a,1x,2(i0,1x))') &
+   &       'sept_target_output_cv_indices =', cvtrg1, cvtrg2
+          write(99,'(a,1x,i0)') 'sept_target_face_index =', iFc1
+          write(99,'(a,1x,i0)') 'sept_target_plasma_cv_index =', iCv1
+          write(99,'(a,1x,i0)') 'sept_target_output_cv_index =', cvtrg1
+          write(99,'(a,1x,i0)') 'sept_target_match_count =', nmatch
+          write(99,'(a,1x,i0)') 'target_face_count =', nfaces
+          write(99,'(a)',advance='no') 'target_face_indices ='
+          do j = 1, nfaces
+            if (faces(j).gt.0) write(99,'(1x,i0)',advance='no') faces(j)
+          enddo
+          write(99,*)
+        enddo
+        deallocate(faces)
+      endif
+    case (B2TIME_SAVE_MODE_AUTO_GROUP)
+      write(99,'(a)') 'save_mode = auto_group'
+      write(99,'(a)') 'target_group_source = fcreg'
+      if (.not.allocated(mpg%divFc) .or. .not.allocated(mpg%fcReg)) then
+        write(99,'(a)') 'no divertor face grouping available in fcReg mode'
+      else
+        allocate(regs(max(1,size(mpg%divFc))))
+        allocate(order(max(1,size(mpg%divFc))))
+        call get_target_fcreg_order(mpg,ntrg,regs,order)
+        do itgt = 1, ntrg
+          nfaces = 0
+          do j = 1, size(mpg%divFc)
+            iFc = mpg%divFc(j)
+            if (iFc.le.0) cycle
+            if (iFc.gt.size(mpg%fcReg)) cycle
+            if (mpg%fcReg(iFc).eq.regs(itgt)) nfaces = nfaces + 1
+          enddo
+          if (nfaces.le.0) cycle
+          call find_target_strike_pair_fcreg(mpg,geo,regs(itgt), &
+   &       target_offset,iFc1,iFc2,iCv1,iCv2,cvtrg1,cvtrg2, &
+   &       iVxsp,nmatch)
+          write(99,'(a,1x,i0)') 'target_index =', itgt
+          write(99,'(a,1x,i0)') 'target_fcreg =', regs(itgt)
+          write(99,'(a,1x,i0)') 'sept_target_vertex_index =', iVxsp
+          write(99,'(a,1x,2(i0,1x))') 'sept_target_face_indices =', &
+   &       iFc1, iFc2
+          write(99,'(a,1x,2(i0,1x))') &
+   &       'sept_target_plasma_cv_indices =', iCv1, iCv2
+          write(99,'(a,1x,2(i0,1x))') &
+   &       'sept_target_output_cv_indices =', cvtrg1, cvtrg2
+          write(99,'(a,1x,i0)') 'sept_target_face_index =', iFc1
+          write(99,'(a,1x,i0)') 'sept_target_plasma_cv_index =', iCv1
+          write(99,'(a,1x,i0)') 'sept_target_output_cv_index =', cvtrg1
+          write(99,'(a,1x,i0)') 'sept_target_match_count =', nmatch
+          write(99,'(a,1x,i0)') 'target_face_count =', nfaces
+          write(99,'(a)',advance='no') 'target_face_indices ='
+          do j = 1, size(mpg%divFc)
+            iFc = mpg%divFc(j)
+            if (iFc.le.0) cycle
+            if (iFc.gt.size(mpg%fcReg)) cycle
+            if (mpg%fcReg(iFc).eq.regs(itgt)) then
+              write(99,'(1x,i0)',advance='no') iFc
+            endif
+          enddo
+          write(99,*)
+        enddo
+        deallocate(regs,order)
+      endif
+    case default
+      write(99,'(a)') 'save_mode = classical'
+      write(99,'(a)') &
+   &   'classical save mode: no general-topology target diagnostics requested'
+    end select
+    close(99)
+    return
+  end subroutine write_b2timenc_cell_list
 
 end module b2mod_mwti
 
