@@ -8,6 +8,12 @@ module b2mod_mwti
 #ifndef SOLPS4_3
   public :: b2mwti, dealloc_b2mod_mwti
 #endif
+  integer, parameter :: B2TIME_SAVE_MODE_CLASSICAL  = 0
+  integer, parameter :: B2TIME_SAVE_MODE_AUTO_GROUP = 1
+  integer, parameter :: B2TIME_SAVE_MODE_USER_GROUP = 2
+  integer, parameter :: B2TIME_USER_GROUP_SOURCE_NONE      = 0
+  integer, parameter :: B2TIME_USER_GROUP_SOURCE_FCLBL     = 1
+  integer, parameter :: B2TIME_USER_GROUP_SOURCE_FACE_LIST = 2
   real (kind=R8), allocatable, save, public :: &
          nasepi_av(:,:), nesepi_av(:), tesepi_av(:), tisepi_av(:), &
          dabsepi_av(:,:), dmbsepi_av(:,:), tabsepi_av(:,:), tmbsepi_av(:,:), &
@@ -3454,6 +3460,77 @@ contains
     close(99)
     return
   end subroutine output_ds_fc
+
+  integer function b2mwti_save_mode(mpg)
+    use b2us_map
+    use b2mod_user_namelist, only : ntarget_fclbl, ntarget_face_group
+    implicit none
+    type (mapping), intent(in) :: mpg
+
+    b2mwti_save_mode = B2TIME_SAVE_MODE_CLASSICAL
+    if (.not.mpg%hasTopologicalData) return
+    if (mpg%topoID.ne.0) return
+    if (ntarget_face_group.gt.0 .or. ntarget_fclbl.gt.0) then
+      b2mwti_save_mode = B2TIME_SAVE_MODE_USER_GROUP
+    else
+      b2mwti_save_mode = B2TIME_SAVE_MODE_AUTO_GROUP
+    end if
+    return
+  end function b2mwti_save_mode
+
+  integer function b2mwti_user_group_source()
+    use b2mod_user_namelist, only : ntarget_fclbl, ntarget_face_group
+    implicit none
+
+    if (ntarget_face_group.gt.0) then
+      b2mwti_user_group_source = B2TIME_USER_GROUP_SOURCE_FACE_LIST
+    else if (ntarget_fclbl.gt.0) then
+      b2mwti_user_group_source = B2TIME_USER_GROUP_SOURCE_FCLBL
+    else
+      b2mwti_user_group_source = B2TIME_USER_GROUP_SOURCE_NONE
+    end if
+    return
+  end function b2mwti_user_group_source
+
+  logical function b2mwti_use_auto_group(mpg)
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+
+    b2mwti_use_auto_group = &
+     b2mwti_save_mode(mpg).eq.B2TIME_SAVE_MODE_AUTO_GROUP
+    return
+  end function b2mwti_use_auto_group
+
+  logical function b2mwti_use_user_group(mpg)
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+
+    b2mwti_use_user_group = &
+     b2mwti_save_mode(mpg).eq.B2TIME_SAVE_MODE_USER_GROUP
+    return
+  end function b2mwti_use_user_group
+
+  logical function b2mwti_use_user_group_fclbl(mpg)
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+
+    b2mwti_use_user_group_fclbl = b2mwti_use_user_group(mpg) .and. &
+   &  b2mwti_user_group_source().eq.B2TIME_USER_GROUP_SOURCE_FCLBL
+    return
+  end function b2mwti_use_user_group_fclbl
+
+  logical function b2mwti_use_user_group_face_list(mpg)
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+
+    b2mwti_use_user_group_face_list = b2mwti_use_user_group(mpg) .and. &
+   &  b2mwti_user_group_source().eq.B2TIME_USER_GROUP_SOURCE_FACE_LIST
+    return
+  end function b2mwti_use_user_group_face_list
 
 end module b2mod_mwti
 
