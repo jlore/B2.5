@@ -19,7 +19,7 @@ contains
    write_2d, ncid, batch_only, iret)
     use b2mod_constants
     use b2mod_user_namelist &
-    , only : nimp, nomp
+    , only : nimp, nomp, ntarget_fclbl, ntarget_face_group
     use b2us_map
     implicit none
 #   include <netcdf.inc>
@@ -34,23 +34,28 @@ contains
     ! NetCDF id
     integer  ncid
     ! dimension ids
-    integer :: ncvdim, nfcdim, nsdim, natmdim, nmoldim, timedim, batchdim, ncdim, idirdim
+    integer :: ncvdim, nfcdim, nsdim, natmdim, nmoldim, timedim, batchdim, ncdim, idirdim, targetnamedim
     integer :: nyadim, nyidim
     integer :: nydim, nybldim, nytldim, nytrdim, nybrdim
     ! variable ids
     integer :: ntstepid, icsepimpid, icsepompid, timesaid, &
+         targetgroupidid, targetgroupnameid, &
+         targetfclblid, targetfcregid, targetfclblnameid, &
          cvlistiid, dsiid, cvlistaid, dsaid, &
          fclistlid, cvlistlid, cnlistlid, dslid, dsLTid, dsLPid, &
          fclistrid, cvlistrid, cnlistrid, dsrid, dsRTid, dsRPid, &
          fclisttlid, cvlisttlid, cnlisttlid, dstlid, dsTLTid, dsTLPid, &
          fclisttrid, cvlisttrid, cnlisttrid, dstrid, dsTRTid, dsTRPid, &
          fnixipid, feexipid, feixipid, fnixapid, feexapid, feixapid, &
+         fnixtpid, feextpid, feixtpid, fetxtpid, &
          nasepiid, nesepiid, tesepiid, tisepiid, dabsepiid, dmbsepiid, tabsepiid, tmbsepiid, &
          nasepmid, nesepmid, tesepmid, tisepmid, dabsepmid, dmbsepmid, tabsepmid, tmbsepmid, &
          nasepaid, nesepaid, tesepaid, tisepaid, dabsepaid, dmbsepaid, tabsepaid, tmbsepaid, &
+         naseptid, neseptid, teseptid, tiseptid, dabseptid, dmbseptid, tabseptid, tmbseptid, &
          namxipid, nemxipid, temxipid, timxipid, namxapid, nemxapid, temxapid, timxapid, &
+         namxtpid, nemxtpid, temxtpid, timxtpid, &
          fniyipid, feeyipid, feiyipid, fniyapid, feeyapid, feiyapid, &
-         pwmxipid, pwmxapid, tmneid, tmteid, tmtiid, &
+         pwmxipid, pwmxapid, pwmxtpid, tmneid, tmteid, tmtiid, &
          tmhacoreid, tmhasolid, tmhadivid, &
          fnisipid, feesipid, feisipid, fnisapid, &
          feesapid, feisapid, fnisippid, feesippid, feisippid, fnisappid, &
@@ -79,8 +84,8 @@ contains
     integer :: na2did, ne2did, te2did, ti2did, po2did, kin2did, rsahi2did, &
          rsana2did, rrahi2did, rrana2did, rcxhi2did, rcxna2did, rqrad2did, &
          rqahe2did, fch2did, fhe2did, fhi2did, fna2did
-    integer :: fchxipid, fchxapid, posepiid, posepmid, posepaid, &
-         pomxipid, pomxapid, fchyipid, fchyapid, &
+    integer :: fchxipid, fchxapid, fchxtpid, posepiid, posepmid, posepaid, poseptid, &
+         pomxipid, pomxapid, pomxtpid, fchyipid, fchyapid, &
          fchsipid, fchsapid, fchsippid, fchsappid, po3dlid, &
          po3diid, po3daid, po3drid, fc3dlid, fc3drid, &
          fl3dlid, fl3drid, fo3dlid, fo3drid, &
@@ -94,7 +99,7 @@ contains
          tpmxipid, tpmxapid, tp3drid, tp3dlid, &
          tpsepiid, tpsepaid, &
 #endif
-         ktsepmid, ktsepaid, ktsepiid, &
+         ktsepmid, ktsepaid, ktsepiid, ktseptid, &
          nastepid, ntimbatchid, batchsaid, &
          nasepm_avid, nesepm_avid, tesepm_avid, tisepm_avid, posepm_avid, &
          dabsepm_avid, tabsepm_avid, dmbsepm_avid, tmbsepm_avid, &
@@ -115,8 +120,25 @@ contains
          ktsepm_stdid, ktsepi_stdid, ktsepa_stdid, &
          ktsepm_avid, ktsepi_avid, ktsepa_avid
     ! variable shapes
-    integer :: dims(4)
+    integer :: dims(4), save_mode, user_group_source
     real (kind=R8) :: dvals(1)
+    logical :: general_topology_targets
+
+    general_topology_targets = mpg%hasTopologicalData .and. &
+   & mpg%topoID.eq.0
+    if (.not.general_topology_targets) then
+      save_mode = 0
+      user_group_source = 0
+    else if (ntarget_face_group.gt.0) then
+      save_mode = 2
+      user_group_source = 2
+    else if (ntarget_fclbl.gt.0) then
+      save_mode = 2
+      user_group_source = 1
+    else
+      save_mode = 1
+      user_group_source = 0
+    endif
 
     ! Create and enter define mode
     iret = nf_create(trim(filename), ncclob, ncid)
@@ -185,9 +207,15 @@ contains
       iret = nf_def_dim(ncid, 'batch', ncunlim, batchdim)
       call check_cdf_status(iret)
     end if
-    nc = max(1,mpg%nXpt)
+    nc = b2cdf_target_count(mpg,save_mode,ntarget_fclbl, &
+   & ntarget_face_group)
     iret = nf_def_dim(ncid, 'nc', nc, ncdim)
     call check_cdf_status(iret)
+    if (save_mode.ne.0) then
+      iret = nf_def_dim(ncid, 'target_name_strlen', 32, &
+   &   targetnamedim)
+      call check_cdf_status(iret)
+    endif
     ! define variables
     if (.not.batch_only) then
       dims(1) = 0
@@ -196,6 +224,34 @@ contains
       dims(1) = timedim
       iret = nf_def_var(ncid, 'timesa', NCDOUBLE, 1, dims, timesaid)
       call check_cdf_status(iret)
+      if (save_mode.ne.0) then
+        dims(1) = ncdim
+        if (save_mode.eq.2) then
+          iret = nf_def_var(ncid, 'target_group_id', NCDOUBLE, 1, &
+   &       dims, targetgroupidid)
+          call check_cdf_status(iret)
+          dims(1) = targetnamedim
+          dims(2) = ncdim
+          iret = nf_def_var(ncid, 'target_group_name', NF_CHAR, 2, &
+   &       dims, targetgroupnameid)
+          call check_cdf_status(iret)
+          dims(1) = ncdim
+          if (user_group_source.eq.1) then
+            iret = nf_def_var(ncid, 'target_fclbl', NCDOUBLE, 1, &
+   &         dims, targetfclblid)
+            call check_cdf_status(iret)
+            dims(1) = targetnamedim
+            dims(2) = ncdim
+            iret = nf_def_var(ncid, 'target_fclbl_name', NF_CHAR, &
+   &         2, dims, targetfclblnameid)
+            call check_cdf_status(iret)
+          endif
+        else if (save_mode.eq.1) then
+          iret = nf_def_var(ncid, 'target_fcreg', NCDOUBLE, 1, &
+   &       dims, targetfcregid)
+          call check_cdf_status(iret)
+        endif
+      endif
       if (nimp.gt.0) then
         dims(1) = 0
         iret = nf_def_var(ncid, 'icsepimp', NCDOUBLE, 0, dims, icsepimpid)
@@ -431,6 +487,23 @@ contains
       call check_cdf_status(iret)
       iret = nf_def_var(ncid, 'fchxap', NCDOUBLE, 2, dims, fchxapid)
       call check_cdf_status(iret)
+      if (save_mode.ne.0) then
+        iret = nf_def_var(ncid, 'fnixtp', NCDOUBLE, 2, dims, &
+   &     fnixtpid)
+        call check_cdf_status(iret)
+        iret = nf_def_var(ncid, 'feextp', NCDOUBLE, 2, dims, &
+   &     feextpid)
+        call check_cdf_status(iret)
+        iret = nf_def_var(ncid, 'feixtp', NCDOUBLE, 2, dims, &
+   &     feixtpid)
+        call check_cdf_status(iret)
+        iret = nf_def_var(ncid, 'fetxtp', NCDOUBLE, 2, dims, &
+   &     fetxtpid)
+        call check_cdf_status(iret)
+        iret = nf_def_var(ncid, 'fchxtp', NCDOUBLE, 2, dims, &
+   &     fchxtpid)
+        call check_cdf_status(iret)
+      endif
       iret = nf_def_var(ncid, 'nesepi', NCDOUBLE, 2, dims, nesepiid)
       call check_cdf_status(iret)
       iret = nf_def_var(ncid, 'tesepi', NCDOUBLE, 2, dims, tesepiid)
@@ -475,6 +548,23 @@ contains
       call check_cdf_status(iret)
       iret = nf_def_var(ncid, 'ktsepa', NCDOUBLE, 2, dims, ktsepaid)
       call check_cdf_status(iret)
+      if (save_mode.ne.0) then
+        iret = nf_def_var(ncid, 'nesept', NCDOUBLE, 2, dims, &
+   &     neseptid)
+        call check_cdf_status(iret)
+        iret = nf_def_var(ncid, 'tesept', NCDOUBLE, 2, dims, &
+   &     teseptid)
+        call check_cdf_status(iret)
+        iret = nf_def_var(ncid, 'tisept', NCDOUBLE, 2, dims, &
+   &     tiseptid)
+        call check_cdf_status(iret)
+        iret = nf_def_var(ncid, 'posept', NCDOUBLE, 2, dims, &
+   &     poseptid)
+        call check_cdf_status(iret)
+        iret = nf_def_var(ncid, 'ktsept', NCDOUBLE, 2, dims, &
+   &     ktseptid)
+        call check_cdf_status(iret)
+      endif
       iret = nf_def_var(ncid, 'nemxip', NCDOUBLE, 2, dims, nemxipid)
       call check_cdf_status(iret)
       iret = nf_def_var(ncid, 'temxip', NCDOUBLE, 2, dims, temxipid)
@@ -491,6 +581,20 @@ contains
       call check_cdf_status(iret)
       iret = nf_def_var(ncid, 'pomxap', NCDOUBLE, 2, dims, pomxapid)
       call check_cdf_status(iret)
+      if (save_mode.ne.0) then
+        iret = nf_def_var(ncid, 'nemxtp', NCDOUBLE, 2, dims, &
+   &     nemxtpid)
+        call check_cdf_status(iret)
+        iret = nf_def_var(ncid, 'temxtp', NCDOUBLE, 2, dims, &
+   &     temxtpid)
+        call check_cdf_status(iret)
+        iret = nf_def_var(ncid, 'timxtp', NCDOUBLE, 2, dims, &
+   &     timxtpid)
+        call check_cdf_status(iret)
+        iret = nf_def_var(ncid, 'pomxtp', NCDOUBLE, 2, dims, &
+   &     pomxtpid)
+        call check_cdf_status(iret)
+      endif
       iret = nf_def_var(ncid, 'fniyip', NCDOUBLE, 2, dims, fniyipid)
       call check_cdf_status(iret)
       iret = nf_def_var(ncid, 'feeyip', NCDOUBLE, 2, dims, feeyipid)
@@ -515,6 +619,11 @@ contains
       call check_cdf_status(iret)
       iret = nf_def_var(ncid, 'pwmxap', NCDOUBLE, 2, dims, pwmxapid)
       call check_cdf_status(iret)
+      if (save_mode.ne.0) then
+        iret = nf_def_var(ncid, 'pwmxtp', NCDOUBLE, 2, dims, &
+   &     pwmxtpid)
+        call check_cdf_status(iret)
+      endif
 #ifdef WG_TODO
       iret = nf_def_var(ncid, 'tpsepi', NCDOUBLE, 2, dims, tpsepiid)
       call check_cdf_status(iret)
@@ -538,6 +647,14 @@ contains
       call check_cdf_status(iret)
       iret = nf_def_var(ncid, 'namxap', NCDOUBLE, 3, dims, namxapid)
       call check_cdf_status(iret)
+      if (save_mode.ne.0) then
+        iret = nf_def_var(ncid, 'nasept', NCDOUBLE, 3, dims, &
+   &     naseptid)
+        call check_cdf_status(iret)
+        iret = nf_def_var(ncid, 'namxtp', NCDOUBLE, 3, dims, &
+   &     namxtpid)
+        call check_cdf_status(iret)
+      endif
       if (nnatmi.gt.0) then
         dims(1) = natmdim
         dims(2) = ncdim
@@ -554,6 +671,14 @@ contains
         call check_cdf_status(iret)
         iret = nf_def_var(ncid, 'tabsepa', NCDOUBLE, 3, dims, tabsepaid)
         call check_cdf_status(iret)
+        if (save_mode.ne.0) then
+          iret = nf_def_var(ncid, 'dabsept', NCDOUBLE, 3, dims, &
+   &       dabseptid)
+          call check_cdf_status(iret)
+          iret = nf_def_var(ncid, 'tabsept', NCDOUBLE, 3, dims, &
+   &       tabseptid)
+          call check_cdf_status(iret)
+        endif
       endif
       if (nnmoli.gt.0) then
         dims(1) = nmoldim
@@ -571,6 +696,14 @@ contains
         call check_cdf_status(iret)
         iret = nf_def_var(ncid, 'tmbsepa', NCDOUBLE, 3, dims, tmbsepaid)
         call check_cdf_status(iret)
+        if (save_mode.ne.0) then
+          iret = nf_def_var(ncid, 'dmbsept', NCDOUBLE, 3, dims, &
+   &       dmbseptid)
+          call check_cdf_status(iret)
+          iret = nf_def_var(ncid, 'tmbsept', NCDOUBLE, 3, dims, &
+   &       tmbseptid)
+          call check_cdf_status(iret)
+        endif
       endif
       dims(1) = timedim
       iret = nf_def_var(ncid, 'tmne', NCDOUBLE, 1, dims, tmneid)
@@ -2692,6 +2825,137 @@ contains
       iret = nf_put_att_text(ncid, pomxap_stdid, 'units', 2, 'V ')
       call check_cdf_status(iret)
     endif
+    if (save_mode.ne.0) then
+      if (save_mode.eq.2) then
+        iret = nf_put_att_text(ncid, targetgroupidid, &
+   &     'long_name', 16, 'target group IDs')
+        call check_cdf_status(iret)
+        iret = nf_put_att_text(ncid, targetgroupnameid, &
+   &     'long_name', 18, 'target group names')
+        call check_cdf_status(iret)
+        if (user_group_source.eq.1) then
+          iret = nf_put_att_text(ncid, targetfclblid, &
+   &       'long_name', 18, 'target face labels')
+          call check_cdf_status(iret)
+          iret = nf_put_att_text(ncid, targetfclblnameid, &
+   &       'long_name', 17, 'target face names')
+          call check_cdf_status(iret)
+        endif
+      else if (save_mode.eq.1) then
+        iret = nf_put_att_text(ncid, targetfcregid, &
+   &     'long_name', 20, 'target region labels')
+        call check_cdf_status(iret)
+      endif
+      iret = nf_put_att_text(ncid, fnixtpid, 'long_name', 48, &
+   &   'integrated poloidal particle flux, target labels')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, fnixtpid, 'units', 4, 's^-1')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, feextpid, 'long_name', 55, &
+   &   'integrated poloidal electron energy flux, target labels')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, feextpid, 'units', 2, 'W ')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, feixtpid, 'long_name', 50, &
+   &   'integrated poloidal ion energy flux, target labels')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, feixtpid, 'units', 2, 'W ')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, fetxtpid, 'long_name', 61, &
+   &   'integrated poloidal total internal energy flux, target labels')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, fetxtpid, 'units', 2, 'W ')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, fchxtpid, 'long_name', 42, &
+   &   'integrated poloidal current, target labels')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, fchxtpid, 'units', 2, 'A ')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, naseptid, 'long_name', 54, &
+   &   'separatrix target fluid species density, target labels')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, naseptid, 'units', 4, 'm^-3')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, neseptid, 'long_name', 49, &
+   &   'separatrix target electron density, target labels')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, neseptid, 'units', 4, 'm^-3')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, teseptid, 'long_name', 53, &
+   &   'separatrix target electron temperature, target labels')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, teseptid, 'units', 2, 'eV')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, tiseptid, 'long_name', 48, &
+   &   'separatrix target ion temperature, target labels')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, tiseptid, 'units', 2, 'eV')
+      call check_cdf_status(iret)
+      if (nnatmi.gt.0) then
+        iret = nf_put_att_text(ncid, dabseptid, 'long_name', 54, &
+   &     'separatrix target atom density (Eirene), target labels')
+        call check_cdf_status(iret)
+        iret = nf_put_att_text(ncid, dabseptid, 'units', 4, 'm^-3')
+        call check_cdf_status(iret)
+        iret = nf_put_att_text(ncid, tabseptid, 'long_name', 58, &
+   &     'separatrix target atom temperature (Eirene), target labels')
+        call check_cdf_status(iret)
+        iret = nf_put_att_text(ncid, tabseptid, 'units', 2, 'eV')
+        call check_cdf_status(iret)
+      endif
+      if (nnmoli.gt.0) then
+        iret = nf_put_att_text(ncid, dmbseptid, 'long_name', 58, &
+   &     'separatrix target molecule density (Eirene), target labels')
+        call check_cdf_status(iret)
+        iret = nf_put_att_text(ncid, dmbseptid, 'units', 4, 'm^-3')
+        call check_cdf_status(iret)
+        iret = nf_put_att_text(ncid, tmbseptid, 'long_name', 62, &
+   &     'separatrix target molecule temperature (Eirene), target labels')
+        call check_cdf_status(iret)
+        iret = nf_put_att_text(ncid, tmbseptid, 'units', 2, 'eV')
+        call check_cdf_status(iret)
+      endif
+      iret = nf_put_att_text(ncid, poseptid, 'long_name', 42, &
+   &   'separatrix target potential, target labels')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, poseptid, 'units', 2, 'V ')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, ktseptid, 'long_name', 57, &
+   &   'separatrix target turbulent kinetic energy, target labels')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, ktseptid, 'units', 2, 'eV')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, namxtpid, 'long_name', 51, &
+   &   'maximum target fluid species density, target labels')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, namxtpid, 'units', 4, 'm^-3')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, nemxtpid, 'long_name', 39, &
+   &   'maximum electron density, target labels')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, nemxtpid, 'units', 4, 'm^-3')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, temxtpid, 'long_name', 43, &
+   &   'maximum electron temperature, target labels')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, temxtpid, 'units', 2, 'eV')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, timxtpid, 'long_name', 38, &
+   &   'maximum ion temperature, target labels')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, timxtpid, 'units', 2, 'eV')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, pomxtpid, 'long_name', 32, &
+   &   'maximum potential, target labels')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, pomxtpid, 'units', 2, 'V ')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, pwmxtpid, 'long_name', 39, &
+   &   'maximum total power flux, target labels')
+      call check_cdf_status(iret)
+      iret = nf_put_att_text(ncid, pwmxtpid, 'units', 6, 'W.m^-2')
+      call check_cdf_status(iret)
+    endif
 
     ! leave define mode
     iret = nf_enddef(ncid)
@@ -2700,6 +2964,57 @@ contains
     call check_cdf_status(iret)
     return
   end subroutine b2crtimecdf
+
+  integer function b2cdf_target_count(mpg,save_mode,ntarget_fclbl, &
+   ntarget_face_group)
+    use b2us_map
+    implicit none
+    type (mapping), intent(in) :: mpg
+    integer, intent(in) :: save_mode, ntarget_fclbl, ntarget_face_group
+    integer, allocatable :: regs(:)
+    integer :: i, iFc, nreg, reg
+
+    b2cdf_target_count = max(1,mpg%nXpt)
+    if (save_mode.eq.2) then
+      if (ntarget_face_group.gt.0) then
+        b2cdf_target_count = max(1,ntarget_face_group)
+      else
+        b2cdf_target_count = max(1,ntarget_fclbl)
+      endif
+      return
+    else if (save_mode.ne.1) then
+      return
+    endif
+
+    if (.not.allocated(mpg%divFc)) then
+      b2cdf_target_count = 1
+      return
+    endif
+    if (.not.allocated(mpg%fcReg)) then
+      b2cdf_target_count = 1
+      return
+    endif
+
+    allocate(regs(max(1,size(mpg%divFc))))
+    regs = 0
+    nreg = 0
+    do i = 1, size(mpg%divFc)
+      iFc = mpg%divFc(i)
+      if (iFc.le.0) cycle
+      if (iFc.gt.size(mpg%fcReg)) cycle
+      reg = mpg%fcReg(iFc)
+      if (reg.le.0) cycle
+      if (nreg.gt.0) then
+        if (any(regs(1:nreg).eq.reg)) cycle
+      endif
+      nreg = nreg + 1
+      if (nreg.gt.size(regs)) exit
+      regs(nreg) = reg
+    enddo
+    b2cdf_target_count = max(1,nreg)
+    deallocate(regs)
+    return
+  end function b2cdf_target_count
 
   subroutine rwcdf(rw,ncid,data_name,imap,data_set,iret)
 #   include <netcdf.inc>
