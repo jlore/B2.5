@@ -40,7 +40,9 @@
       real (kind=R8), save :: elm_time_period
       real(kind=R8) :: scaling_width(nscale), scaling_strength(nscale)
       logical, save :: region_flags(CVREGMAX,nkind_coeff), no_pflux,
-     1 poloidal_scaling(nscale), no_div
+     1 poloidal_scaling(nscale), no_div, apply_inner_sol,
+     2 dsa_apply_psi_contour
+      integer, save :: apply_only_cvreg(CVREGMAX)
       integer, save :: scaling_ix_begin(nscale), scaling_ix_end(nscale)
       integer, save :: elm_ix_begin, elm_ix_end
       integer, save :: tr_ip_elm_count
@@ -55,7 +57,8 @@
      2   transport_ip_time_switch, scaling_ix_begin, scaling_ix_end,
      3   scaling_strength, region_flags, no_pflux, poloidal_scaling,
      4   scaling_width, elm_time_begin, elm_time_end, elm_time_period,
-     5   elm_ix_begin, elm_ix_end, no_div
+     5   elm_ix_begin, elm_ix_end, no_div, apply_inner_sol,
+     6   dsa_apply_psi_contour, apply_only_cvreg
 
       data transport_ip_filename/'b2.transport.inputfile'/,
      1 transport_ip_time_mod/0.0_R8/,transport_ip_time_switch/0.0_R8/
@@ -531,7 +534,8 @@ cdjm Jan2017 Keep linearised sources for balance
       use b2mod_constants
       use b2mod_b2cmpa
       use b2mod_user_namelist
-     , , only : nomp, omp, icsepomp
+     & , only : nomp, omp, icsepomp, nimp, imp, icsepimp,
+     &          ft_omp, ft_imp, psi_omp, psi_imp
       IMPLICIT NONE
       integer, intent (in) :: nCv, ns
       type (geometry), intent (in) :: geo
@@ -546,12 +550,13 @@ cdjm Jan2017 Keep linearised sources for balance
      &  hci0(nCv), hcib(nCv,0:ns-1)
       real (kind=R8) ::
      *  hce0(nCv), sig0(nCv), alf0(nCv)
-      integer :: iy,iy2,i,ifail,spec,nspec,iir,iFc,iFt,iCv,iCn,
+      integer :: iy,iy2,iyimp,i,ifail,spec,nspec,iir,iFc,iFt,iCv,
+     &      iCn,
      &      is,nsp(1:ns+1),iloop,ncall,ndat,
      &      kind_coeff,kind_data,ic
       real(kind=R8), allocatable, dimension(:) :: f,r,pr,pf,d,
-     &    pelm,felm,delm,prof
-      real (kind=R8) :: poloidal_scale_factor
+     &    pelm,felm,delm,prof,pfi,pelmi,profi
+      real (kind=R8) :: poloidal_scale_factor, prof_value
       logical, save :: elm_region, elm_data
 #ifdef WG_TODO
       integer :: isc
@@ -559,7 +564,7 @@ cdjm Jan2017 Keep linearised sources for balance
       logical, save :: elm_time
 #endif
       character*26 hlp_frm
-      logical catch_up, lpflux, ldiv
+      logical catch_up, lpflux, ldiv, use_imp_profile
       intrinsic sqrt
       external calc_dist, E01BEF, E01BFF
 
@@ -599,6 +604,13 @@ cdjm Jan2017 Keep linearised sources for balance
      &    'No CVs in omp list, check rzomp in b2.user.parameters')
         call xertst(icsepomp.gt.0,
      &    'Invalid icsepomp value, check rzomp in b2.user.parameters')
+        if (apply_inner_sol .and.
+     &      .not. dsa_apply_psi_contour) then
+          call xertst(nimp.gt.0,
+     &      'No CVs in imp list, check rzimp in b2.user.parameters')
+          call xertst(icsepimp.gt.0,
+     &      'Invalid icsepimp value, check rzimp in b2.user.parameters')
+        endif
         if (any(poloidal_scaling))
      .    call xerrab('Poloidal scaling not yet coded for WG')
         call xertst(no_div.or.mpg%isClassicalGrid.eq.1,
@@ -717,12 +729,39 @@ cdjm Jan2017 Keep linearised sources for balance
               endif
             endif
 
+            if (apply_inner_sol .and.
+     &          .not. dsa_apply_psi_contour) then
+              allocate(pfi(nimp), pelmi(nimp), profi(nimp))
+              do iy=1,nimp
+                pfi(iy)=transport_value_from_psi(nomp,pr,psi_omp,
+     &            ndat,r,f,psi_imp(iy))
+                if (elm_data) then
+                  pelmi(iy)=transport_value_from_psi(nomp,pr,psi_omp,
+     &              ndat,r,felm,psi_imp(iy))
+                else
+                  pelmi(iy)=pfi(iy)
+                endif
+              enddo
+            endif
+
             do is=1,nspec
               do iFt=1,mpg%nFt
                 iy = ft_omp(iFt)
+                use_imp_profile = .false.
                 if (iy.eq.0) then
-                  iy2 = nomp ! The flux tube does not intercept the OMP
-                             ! Assume it lies in the far SOL
+                  if (apply_inner_sol .and.
+     &                .not. dsa_apply_psi_contour) then
+                    iyimp = ft_imp(iFt)
+                    if (iyimp.gt.0) then
+                      iy2 = iyimp
+                      use_imp_profile = .true.
+                    else
+                      iy2 = nomp
+                    endif
+                  else
+                    iy2 = nomp ! Flux tube does not intercept the OMP
+                               ! Assume it lies in the far SOL
+                  endif
                 else
                   iy2=iy
                 endif
@@ -756,58 +795,74 @@ c                   private-flux/divertor classification.
                   elm_region=elm_time.and.elm_data.and.
      &                     ix.ge.elm_ix_begin.and.ix.le.elm_ix_end
 #endif
-                  if(.not.
-     1             (.not.region_flags(iir,kind_coeff).or.
-     1             (lpflux.and.no_pflux).or.
-     1             (ldiv.and.no_div))) then
+                  if (region_flags(iir,kind_coeff) .and.
+     &                (.not. (lpflux .and. no_pflux)) .and.
+     &                (.not. (ldiv .and. no_div)) .and.
+     &                cvreg_is_enabled(iir)) then
 
                     if (elm_region) then
                       prof(1:nomp)=pelm(1:nomp)
+                      if (use_imp_profile) profi(1:nimp)=pelmi(1:nimp)
                     else
                       prof(1:nomp)=pf(1:nomp)
+                      if (use_imp_profile) profi(1:nimp)=pfi(1:nimp)
+                    endif
+
+                    if (dsa_apply_psi_contour) then
+                      if (elm_region) then
+                        prof_value = transport_value_from_psi(nomp,pr,
+     &                    psi_omp,ndat,r,felm,geo%cvFpsi(iCv))
+                      else
+                        prof_value = transport_value_from_psi(nomp,pr,
+     &                    psi_omp,ndat,r,f,geo%cvFpsi(iCv))
+                      endif
+                    elseif (use_imp_profile) then
+                      prof_value = profi(iy2)
+                    else
+                      prof_value = prof(iy2)
                     endif
 
                     if (kind_coeff.eq.1) then
                       dna0(iCv,nsp(is))=
-     1                 prof(iy2)*poloidal_scale_factor
+     1                 prof_value*poloidal_scale_factor
 
                     elseif (kind_coeff.eq.2) then
                       dpa0(iCv,nsp(is))=
-     1                 prof(iy2)*poloidal_scale_factor/
+     1                 prof_value*poloidal_scale_factor/
      &                 (rt%rza(iCv,nsp(is))*pl%te(iCv)+pl%ti(iCv))
 
                     elseif (kind_coeff.eq.3) then
                       hcib(iCv,nsp(is))=poloidal_scale_factor*
-     &                 prof(iy2)*pl%na(iCv,nsp(is))
+     &                 prof_value*pl%na(iCv,nsp(is))
 
                     elseif (kind_coeff.eq.4) then
-                      hce0(iCv)=prof(iy2)*dv%ne(iCv)*
+                      hce0(iCv)=prof_value*dv%ne(iCv)*
      1                 poloidal_scale_factor
 
                     elseif (kind_coeff.eq.5) then
                       vla0(iCv,0,nsp(is))=
-     1                 prof(iy2)*poloidal_scale_factor
+     1                 prof_value*poloidal_scale_factor
 
                     elseif (kind_coeff.eq.6) then
                       vla0(iCv,1,nsp(is))=
-     1                 prof(iy2)*poloidal_scale_factor
+     1                 prof_value*poloidal_scale_factor
 
                     elseif (kind_coeff.eq.7) then
                       vsa0(iCv,nsp(is))=poloidal_scale_factor*
-     1                 prof(iy2)*mp*am(nsp(is))*pl%na(iCv,nsp(is))
+     1                 prof_value*mp*am(nsp(is))*pl%na(iCv,nsp(is))
 
                     elseif (kind_coeff.eq.8) then
                       if (csig_an_style.eq.0) then
-                        sig0(iCv)=prof(iy2)*qe*dv%ne(iCv)*
+                        sig0(iCv)=prof_value*qe*dv%ne(iCv)*
      1                   poloidal_scale_factor
                       elseif(csig_an_style.eq.1.and.nomp.gt.0) then
-                        sig0(iCv)=prof(iy2)*qe*dv%ne(omp(1))*
+                        sig0(iCv)=prof_value*qe*dv%ne(omp(1))*
      1                   poloidal_scale_factor
                       endif
 
                     elseif (kind_coeff.eq.9) then
                       alf0(iCv)=poloidal_scale_factor*
-     1                 prof(iy2)*dv%ne(iCv)*
+     1                 prof_value*dv%ne(iCv)*
      2                 sqrt(qe/pl%te(iCv))
 
                     else
@@ -822,7 +877,29 @@ c                   private-flux/divertor classification.
                 iFc = mpg%cvFc(mpg%cvFcP(iCv,1))
                 iCn = min(mpg%fcCv(iFc,1),mpg%fcCv(iFc,2)) ! neighbour cell
                 iir = mpg%cvReg(iCn)
-                if ((iir.eq.1).or.(iir.eq.5)) then ! core boundary
+                use_imp_profile = .false.
+                if (apply_inner_sol .and.
+     &              .not. dsa_apply_psi_contour) then
+                  iFt = mpg%cvFt(iCn)
+                  if (iFt.gt.0) then
+                    iy = ft_omp(iFt)
+                    if (iy.gt.0) then
+                      iy2 = iy
+                    else
+                      iyimp = ft_imp(iFt)
+                      if (iyimp.gt.0) then
+                        iy2 = iyimp
+                        use_imp_profile = .true.
+                      else
+                        iy2 = nomp
+                      endif
+                    endif
+                  elseif ((iir.eq.1).or.(iir.eq.5)) then
+                    iy2 = 1
+                  else
+                    iy2 = nomp
+                  endif
+                elseif ((iir.eq.1).or.(iir.eq.5)) then ! core boundary
                   iy2 = 1
                 elseif ((iir.eq.2).or.(iir.eq.6)) then ! SOL boundary
                   iy2 = nomp
@@ -860,58 +937,74 @@ c                 private-flux/divertor classification.
                 elm_region=elm_time.and.elm_data.and.
      &                     ix.ge.elm_ix_begin.and.ix.le.elm_ix_end
 #endif
-                if(.not.
-     1            (.not.region_flags(iir,kind_coeff).or.
-     1            (lpflux.and.no_pflux).or.
-     1            (ldiv.and.no_div))) then
+                if (region_flags(iir,kind_coeff) .and.
+     &              (.not. (lpflux .and. no_pflux)) .and.
+     &              (.not. (ldiv .and. no_div)) .and.
+     &              cvreg_is_enabled(iir)) then
 
                   if (elm_region) then
                     prof(1:nomp)=pelm(1:nomp)
+                    if (use_imp_profile) profi(1:nimp)=pelmi(1:nimp)
                   else
                     prof(1:nomp)=pf(1:nomp)
+                    if (use_imp_profile) profi(1:nimp)=pfi(1:nimp)
+                  endif
+
+                  if (dsa_apply_psi_contour) then
+                    if (elm_region) then
+                      prof_value = transport_value_from_psi(nomp,pr,
+     &                  psi_omp,ndat,r,felm,geo%cvFpsi(iCn))
+                    else
+                      prof_value = transport_value_from_psi(nomp,pr,
+     &                  psi_omp,ndat,r,f,geo%cvFpsi(iCn))
+                    endif
+                  elseif (use_imp_profile) then
+                    prof_value = profi(iy2)
+                  else
+                    prof_value = prof(iy2)
                   endif
 
                   if (kind_coeff.eq.1) then
                     dna0(iCv,nsp(is))=
-     1               prof(iy2)*poloidal_scale_factor
+     1               prof_value*poloidal_scale_factor
 
                   elseif (kind_coeff.eq.2) then
                     dpa0(iCv,nsp(is))=
-     1               prof(iy2)*poloidal_scale_factor/
+     1               prof_value*poloidal_scale_factor/
      &               (rt%rza(iCv,nsp(is))*pl%te(iCv)+pl%ti(iCv))
 
                   elseif (kind_coeff.eq.3) then
                     hcib(iCv,nsp(is))=poloidal_scale_factor*
-     &               prof(iy2)*pl%na(iCv,nsp(is))
+     &               prof_value*pl%na(iCv,nsp(is))
 
                   elseif (kind_coeff.eq.4) then
-                    hce0(iCv)=prof(iy2)*dv%ne(iCv)*
+                    hce0(iCv)=prof_value*dv%ne(iCv)*
      1               poloidal_scale_factor
 
                   elseif (kind_coeff.eq.5) then
                     vla0(iCv,0,nsp(is))=
-     1               prof(iy2)*poloidal_scale_factor
+     1               prof_value*poloidal_scale_factor
 
                   elseif (kind_coeff.eq.6) then
                     vla0(iCv,1,nsp(is))=
-     1               prof(iy2)*poloidal_scale_factor
+     1               prof_value*poloidal_scale_factor
 
                   elseif (kind_coeff.eq.7) then
                     vsa0(iCv,nsp(is))=poloidal_scale_factor*
-     1               prof(iy2)*mp*am(nsp(is))*pl%na(iCv,nsp(is))
+     1               prof_value*mp*am(nsp(is))*pl%na(iCv,nsp(is))
 
                   elseif (kind_coeff.eq.8) then
                     if (csig_an_style.eq.0) then
-                      sig0(iCv)=prof(iy2)*qe*dv%ne(iCv)*
+                      sig0(iCv)=prof_value*qe*dv%ne(iCv)*
      1                 poloidal_scale_factor
                     elseif(csig_an_style.eq.1.and.nomp.gt.0) then
-                      sig0(iCv)=prof(iy2)*qe*dv%ne(omp(1))*
+                      sig0(iCv)=prof_value*qe*dv%ne(omp(1))*
      1                 poloidal_scale_factor
                     endif
 
                   elseif (kind_coeff.eq.9) then
                     alf0(iCv)=poloidal_scale_factor*
-     1               prof(iy2)*dv%ne(iCv)*
+     1               prof_value*dv%ne(iCv)*
      2               sqrt(qe/pl%te(iCv))
 
                   else
@@ -990,6 +1083,10 @@ c                 private-flux/divertor classification.
               endif
             endif
 
+            if (apply_inner_sol .and.
+     &          .not. dsa_apply_psi_contour) then
+              deallocate(pfi, pelmi, profi)
+            endif
             deallocate(f, r, pr, pf, felm, pelm, delm, prof, d)
             iloop=iloop+1
           enddo !kind_data
@@ -1007,6 +1104,90 @@ c                 private-flux/divertor classification.
 
 *-----------------------------------------------------------------------
 
+      real(kind=R8) function interp1_clipped(n,x,y,x0)
+      implicit none
+      integer, intent(in) :: n
+      real(kind=R8), intent(in) :: x(n), y(n), x0
+      integer :: i, ibest
+      real(kind=R8) :: x1, x2, frac, best
+
+      if (n.le.0) then
+        interp1_clipped = 0.0_R8
+        return
+      endif
+      if (n.eq.1) then
+        interp1_clipped = y(1)
+        return
+      endif
+
+      do i=1,n-1
+        x1 = x(i)
+        x2 = x(i+1)
+        if (x1.eq.x2) cycle
+        if ((x0-x1)*(x0-x2).le.0.0_R8) then
+          frac = (x0-x1)/(x2-x1)
+          interp1_clipped = y(i) + frac*(y(i+1)-y(i))
+          return
+        endif
+      enddo
+
+      ibest = 1
+      best = abs(x0-x(1))
+      do i=2,n
+        if (abs(x0-x(i)).lt.best) then
+          ibest = i
+          best = abs(x0-x(i))
+        endif
+      enddo
+      interp1_clipped = y(ibest)
+      return
+      end function interp1_clipped
+
+*-----------------------------------------------------------------------
+
+      real(kind=R8) function transport_value_from_psi(nref,ref_dsa,
+     & ref_psi,ndat,data_dsa,data_value,psi_value)
+      implicit none
+      integer, intent(in) :: nref, ndat
+      real(kind=R8), intent(in) :: ref_dsa(nref), ref_psi(nref)
+      real(kind=R8), intent(in) :: data_dsa(ndat), data_value(ndat)
+      real(kind=R8), intent(in) :: psi_value
+      real(kind=R8) :: dsa_value
+
+      dsa_value = interp1_clipped(nref, ref_psi, ref_dsa, psi_value)
+      transport_value_from_psi =
+     &  interp1_clipped(ndat, data_dsa, data_value, dsa_value)
+      return
+      end function transport_value_from_psi
+
+*-----------------------------------------------------------------------
+
+      logical function cvreg_is_enabled(iir)
+      implicit none
+      integer, intent(in) :: iir
+      integer :: i
+
+      cvreg_is_enabled = .true.
+      do i=1,CVREGMAX
+        if (apply_only_cvreg(i).gt.0) then
+          cvreg_is_enabled = .false.
+          exit
+        endif
+      enddo
+
+      if (cvreg_is_enabled) return
+
+      do i=1,CVREGMAX
+        if (apply_only_cvreg(i).eq.iir) then
+          cvreg_is_enabled = .true.
+          return
+        endif
+      enddo
+      return
+      end function cvreg_is_enabled
+
+*-----------------------------------------------------------------------
+
       subroutine read_transport_input(filenamet)
       implicit none
       character*256 filenamet
@@ -1019,6 +1200,9 @@ c*** Clear data to forget previous profiles
       region_flags=.true.
       no_pflux=.false.
       no_div=.false.
+      apply_inner_sol=.false.
+      dsa_apply_psi_contour=.false.
+      apply_only_cvreg(:)=0
       poloidal_scaling=.false.
       scaling_strength=0.0_R8
       scaling_width=0.0_R8
