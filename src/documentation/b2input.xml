@@ -3713,6 +3713,14 @@
 				</description>
 			</switch>
 			<switch>
+				<name>b2mndr_b2fplasma_netcdf</name>
+				<default>0</default>
+				<type>integer</type>
+				<description>
+					If non-zero, writes b2fplasma.nc at the final state. The file contains selected plasma transport coefficients and heat-flux components in NetCDF format.
+				</description>
+			</switch>
+			<switch>
 				<name>b2mndr_plasnum</name>
 				<default>0</default>
 				<type>integer</type>

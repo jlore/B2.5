@@ -68,6 +68,8 @@
       use b2us_map
       use b2us_geo
       use b2us_plasma
+      use b2mod_plasma_netcdf
+     & , only : write_b2fplasma_netcdf
       use b2us_io
       use b2us_data
       use b2mod_par_opt
@@ -3535,6 +3537,9 @@ cxpb Copy the IDS to a temporary location with the new DD and then bring it back
       call cfwuin (nout(7), 3, idum, 'nCv,nFc,ns')
       call write_b2fplasma (nout(7), nCv, nFc, ns, state)
       close(nout(7))
+      if (switch%b2mndr_b2fplasma_netcdf.ne.0)
+     & call write_b2fplasma_netcdf('b2fplasma.nc', nCv, nFc, ns,
+     &  tim, itim, state)
 
 *   ..mms steady-state error analysis
       if(switch%use_mms.eq.1.and.switch%iout_b2wdat.eq.10) then          !srv 26.02.18 {

@@ -240,6 +240,7 @@ c iout switches
       integer :: eirene_mc_iout
       integer :: b2siav_iout
       integer :: b2mndr_iout
+      integer :: b2mndr_b2fplasma_netcdf
       integer :: b2scdt_iout
       integer :: b2smdt_iout
       integer :: b2shdt_iout
@@ -868,6 +869,7 @@ c Zhdanov closure switches
       s % eirene_mc_iout = 0
       s % b2siav_iout = 0
       s % b2mndr_iout = 0
+      s % b2mndr_b2fplasma_netcdf = 0
       s % b2scdt_iout = 0
       s % b2smdt_iout = 0
       s % b2shdt_iout = 0
@@ -1556,6 +1558,8 @@ c iout switches
       call ipgeti ('copy_background_iout', s % copy_background_iout)   !srv 14.07.10
       call ipgeti ('eirene_mc_iout', s % eirene_mc_iout)
       call ipgeti ('b2mndr_iout', s % b2mndr_iout)
+      call ipgeti ('b2mndr_b2fplasma_netcdf',
+     & s % b2mndr_b2fplasma_netcdf)
       call ipgeti ('b2scdt_iout', s % b2scdt_iout)
       call ipgeti ('b2smdt_iout', s % b2smdt_iout)
       call ipgeti ('b2shdt_iout', s % b2shdt_iout)

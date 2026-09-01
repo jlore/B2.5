@@ -1383,7 +1383,7 @@ contains
 #endif
     implicit none
     integer iun, i, k, l
-    integer, parameter :: ninpf=44, noutf=27, file_len=38
+    integer, parameter :: ninpf=44, noutf=28, file_len=38
     character(len=STRMAXLEN) :: alias
     character(len=256) :: file_path, filename
     character(len=file_len) :: input_file_list(ninpf)
@@ -1417,7 +1417,8 @@ contains
    & 'b2movies.nc', 'eirenemovies.nc', 'b2tallies.nc', 'balance.nc', &  !20
    & 'tran', 'shotnumber.history', 'b2.transport_models_save.parameters', &  !23
    & 'b2.feedback_save.parameters', 'b2.neutrals_save.parameters', &  !25
-   & 'b2.sputter_save.parameters', 'b2.wall_save.parameters'/  !27
+   & 'b2.sputter_save.parameters', 'b2.wall_save.parameters', &  !27
+   & 'b2fplasma.nc'/  !28
 
 #ifndef LEGACYCOMP
     open (newunit=iun,file='manifest.yaml',form='FORMATTED')
