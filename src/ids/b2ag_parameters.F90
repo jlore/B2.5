@@ -202,34 +202,9 @@ contains
              nncut = idum(2)
            end if
            ! Additional topological data?
-           if (grid_version >= "03.002.002") then
-            ! Set flag
-            m%hasTopologicalData = .true.
-
-            ! Read in topology ID
-            call cfruin(lun, 1, idum, 'topoflag')
-            m%topoID = idum(0)
-
-            ! Read in x-point, strike point, tangency point, and divertor target numbers
-            call cfruin(lun, 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
-            m%nXpt = idum(0)
-            m%nOpt = idum(1)
-            m%nStr = idum(2)
-            m%nTgc = idum(3)
-            m%nDiv = idum(4)
-            m%nfcDiv = idum(5)
-
-          else
-            ! Set default values
-            m%hasTopologicalData = .false.
-            m%nXpt = 0
-            m%nOpt = 0
-            m%nStr = 0
-            m%nTgc = 0
-            m%nDiv = 0
-            m%nfcDiv = 0
-            m%topoID = 0 ! to be determined later
-           end if
+           ! ORNL_ONLY: detect optional topology records by header instead of
+           ! version so interim local 03.002.001 files remain readable.
+           call read_topology_counts_if_present(lun, m)
          end if
        end if
      end if

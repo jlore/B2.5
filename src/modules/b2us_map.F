@@ -11,7 +11,8 @@
      .          alloc_mapping_cf, dealloc_mapping_cf,
      .          read_mapping, write_mapping,
      .          init_mapping, get_version,
-     .          calc_add_connectivity, update_guard_cells
+     .          calc_add_connectivity, update_guard_cells,
+     .          read_topology_counts_if_present
 
       type, public :: mapping
         integer :: nCv, nFc, nVx, nCg, nCi, nCmxVx, nCmxFc, nVmxCv,
@@ -135,6 +136,83 @@
         end type mapping
 
       contains
+
+**********************************************************************
+
+      subroutine read_topology_counts_if_present(iun, m)
+      implicit none
+      integer, intent(in) :: iun
+      type(mapping), intent(inout) :: m
+      integer :: idum(0:5), ios, n0
+      character chf*12, line*256, idcod*8, idtyp*8,
+     &  idnum*32, id*32
+      logical streql
+      external cfruin, streql, xerrab
+
+      m%hasTopologicalData = .false.
+      m%topoID = 0
+      m%nXpt = 0
+      m%nOpt = 0
+      m%nStr = 0
+      m%nTgc = 0
+      m%nDiv = 0
+      m%nfcDiv = 0
+
+! ORNL_ONLY: accept topology records by sniffing the next header.
+! This keeps locally generated 03.002.001 files readable while the
+! community settles the final versioning/format convention.
+      inquire (iun, form=chf, err=91)
+      if (streql(chf,'formatted')) then
+        read (iun,'(a)',iostat=ios) line
+        if (ios.ne.0) return
+        idcod = ' '
+        idtyp = ' '
+        idnum = ' '
+        id = ' '
+        read (line,*,iostat=ios) idcod, idtyp, idnum, id
+        if (ios.eq.0.and.streql('*cf:',idcod).and.
+     &      streql('int',idtyp).and.streql('topoflag',id)) then
+          read (iun,*,err=92) idum(0)
+          m%topoID = idum(0)
+        else
+          backspace(iun)
+          return
+        endif
+      else if (streql(chf,'unformatted')) then
+        read (iun,err=93,end=89) idcod, idtyp, n0, id
+        if (streql('*cf:',idcod).and.streql('int',idtyp).and.
+     &      streql('topoflag',id)) then
+          read (iun,err=94) idum(0)
+          m%topoID = idum(0)
+        else
+          backspace(iun)
+          return
+        endif
+      else
+        call xerrab('read_topology_counts_if_present: invalid file ' //
+     &    'form-property: '//chf)
+      endif
+
+      call cfruin (iun, 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
+      m%nXpt = idum(0)
+      m%nOpt = idum(1)
+      m%nStr = idum(2)
+      m%nTgc = idum(3)
+      m%nDiv = idum(4)
+      m%nfcDiv = idum(5)
+      m%hasTopologicalData = .true.
+
+      return
+   89 return
+   91 call xerrab('read_topology_counts_if_present: error return ' //
+     &  'from inquire statement')
+   92 call xerrab('read_topology_counts_if_present: error reading ' //
+     &  'topoflag data')
+   93 call xerrab('read_topology_counts_if_present: error reading ' //
+     &  'unformatted topoflag header')
+   94 call xerrab('read_topology_counts_if_present: error reading ' //
+     &  'unformatted topoflag data')
+      end subroutine read_topology_counts_if_present
 
 **********************************************************************
 
@@ -593,10 +671,11 @@
 #endif
       implicit none
       integer, intent(in) :: iun
-      integer :: n2, nx, i
+      integer :: n2, nx, i, idiv
       type (mapping), intent (inout) :: mpg
       character(8)  :: idcod
       character(32) :: id
+      logical divFcpHasIndex
       external cfruin, cfrure, xerrab
       logical streql
       external streql
@@ -647,8 +726,7 @@
       call cfruin (iun, mpg%nCv, mpg%cvLbl, 'cvLbl')
       call cfruin (iun, mpg%nFt, mpg%ftLbl, 'ftLbl')
 
-      if (b2fgmtry_version.ge.'03.002.002'.and.
-     &    mpg%hasTopologicalData) then
+      if (mpg%hasTopologicalData) then
         read(iun, *) idcod, id
         if (.not.(streql('*cf:',idcod).and.streql('Vx',id))) then
           call xerrab('read_mapping: expected Xpt topology')
@@ -685,12 +763,20 @@
         enddo
 
         read(iun, *) idcod, id
-        if (.not.(streql('*cf:',idcod).and.streql('divFcP1',id)))
-     &    then
+        divFcpHasIndex = streql('div',id)
+! ORNL_ONLY: read both the interim two-column pointer table and
+! the restored GOAT/SOLPS indexed table while the final format is
+! settled upstream.
+        if (.not.(streql('*cf:',idcod).and.
+     &    (streql('divFcP1',id).or.divFcpHasIndex))) then
           call xerrab('read_mapping: expected divertor topology')
         endif
         do i = 1, mpg%nDiv
-          read(iun, *) mpg%divFcP(i,1), mpg%divFcP(i,2)
+          if (divFcpHasIndex) then
+            read(iun, *) idiv, mpg%divFcP(i,1), mpg%divFcP(i,2)
+          else
+            read(iun, *) mpg%divFcP(i,1), mpg%divFcP(i,2)
+          endif
         enddo
 
         call cfruin (iun, mpg%nfcDiv, mpg%divFc, 'divFc')

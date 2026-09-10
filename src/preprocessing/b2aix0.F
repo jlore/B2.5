@@ -100,31 +100,9 @@
       mpg%nncut = idum(2)
 
 *   ..read topological data if available
-      mpg%hasTopologicalData = .false.
-      mpg%topoID = 0
-      mpg%nXpt = 0
-      mpg%nOpt = 0
-      mpg%nStr = 0
-      mpg%nTgc = 0
-      mpg%nDiv = 0
-      mpg%nfcDiv = 0
-      if (b2fgmtry_version.ge.'03.002.002') then
-        ! Set logical
-        mpg%hasTopologicalData = .true.
-
-        ! Read topological mesh flag
-        call cfruin(ninp(1), 1, idum, 'topoflag')
-        mpg%topoID = idum(0)
-
-        ! Read number of topological points
-        call cfruin(ninp(1), 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
-        mpg%nXpt = idum(0)
-        mpg%nOpt = idum(1)
-        mpg%nStr = idum(2)
-        mpg%nTgc = idum(3)
-        mpg%nDiv = idum(4)
-        mpg%nfcDiv = idum(5)
-      endif
+* ORNL_ONLY: detect optional topology records by header instead of
+* version so interim local 03.002.001 files remain readable.
+      call read_topology_counts_if_present(ninp(1), mpg)
 
 *   ..test basic dimensions
       nCv = mpg%nCv

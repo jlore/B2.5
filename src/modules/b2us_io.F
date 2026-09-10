@@ -34,15 +34,6 @@
       integer :: idum(0:9)
 
       if (version.ge.'03.002.000') then
-        m%hasTopologicalData = .false.
-        m%topoID = 0
-        m%nXpt = 0
-        m%nOpt = 0
-        m%nStr = 0
-        m%nTgc = 0
-        m%nDiv = 0
-        m%nfcDiv = 0
-
         call cfruin (ninp, 7, idum, 'nCi,nCg,nCv,nFc,nVx,nFs,nFt')
         m%nCi = idum(0)
         m%nCg = idum(1)
@@ -73,18 +64,9 @@
           m%nncut = -1
         endif
 
-        if (version.ge.'03.002.002') then
-          m%hasTopologicalData = .true.
-          call cfruin (ninp, 1, idum, 'topoflag')
-          m%topoID = idum(0)
-          call cfruin (ninp, 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
-          m%nXpt = idum(0)
-          m%nOpt = idum(1)
-          m%nStr = idum(2)
-          m%nTgc = idum(3)
-          m%nDiv = idum(4)
-          m%nfcDiv = idum(5)
-        endif
+! ORNL_ONLY: detect optional topology records by header instead of
+! version so interim local 03.002.001 files remain readable.
+        call read_topology_counts_if_present(ninp, m)
 
         call cfruch (ninp, 120, lblgm, 'label')
         call cfruin (ninp, 1, idum, 'isymm')

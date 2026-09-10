@@ -441,9 +441,9 @@
       !internal
       character idcod*8, id*32
       integer :: iCv, iVx, iFc, iv(nnVx), ic(nnCv), if(nnFc),
-     &   idum(0:5), iFt, iFs, ifcv(nnFt), ifsv(nnFs), n2
+     &   idum(0:5), iFt, iFs, ifcv(nnFt), ifsv(nnFs), n2, idiv
       real(kind=R8) :: cvBp(m%nCv), cvBt(m%nCv), cvFpsi(m%nCv)
-      logical streql
+      logical streql, divFcpHasIndex
       external xertst, xerrab, streql, cfruin
 
 *   ..subprogram start-up calls
@@ -484,22 +484,10 @@
         endif
 
         ! Read topological data if present
-        if (grid_version >= '03.002.002') then
-          ! Set logical
-          m%hasTopologicalData = .true.
-
-          ! Read topological mesh flag
-          call cfruin(nrid, 1, idum, 'topoflag')
-          m%topoID = idum(0)
-
-          ! Read number of topological points
-          call cfruin(nrid, 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
-          m%nXpt = idum(0)
-          m%nOpt = idum(1)
-          m%nStr = idum(2)
-          m%nTgc = idum(3)
-          m%nDiv = idum(4)
-          m%nfcDiv = idum(5)
+        ! ORNL_ONLY: detect optional topology records by header instead of
+        ! version so interim local 03.002.001 files remain readable.
+        call read_topology_counts_if_present(nrid, m)
+        if (m%hasTopologicalData) then
 
           ! Read X-point data
           read(nrid,*,err=91) idcod, id
@@ -554,12 +542,21 @@
 
           ! Read divertor data
           read(nrid,*,err=91) idcod, id
-          if (streql('*cf:',idcod).and.streql('divFcP1',id)) then
+          divFcpHasIndex = streql('div',id)
+          ! ORNL_ONLY: read both the interim two-column pointer table
+          ! and the restored GOAT/SOLPS indexed table while the final
+          ! format is settled upstream.
+          if (streql('*cf:',idcod).and.
+     &        (streql('divFcP1',id).or.divFcpHasIndex)) then
             do iVx = 1, m%nDiv
-              ! divFcP(:, 1) divFcP(:, 2)
+              if (divFcpHasIndex) then
+                read(nrid,*,err=91) idiv, m%divFcP(iVx, 1),
+     &            m%divFcP(iVx, 2)
+              else
                 read(nrid,*,err=91) m%divFcP(iVx, 1),
      &            m%divFcP(iVx, 2)
-              enddo
+              endif
+            enddo
           else
             call xerrab('read_traduitoutb2us: expected divertor ' //
      &        'topology')
@@ -567,10 +564,6 @@
 
           ! Read divertor face data
           call cfruin(nrid, m%nfcDiv, m%divFc, 'divFc')
-        else
-          ! No data available, will be determined later on based on
-          ! standard data/cases
-          m%hasTopologicalData = .false.
         endif
 
         ! read vertex information
