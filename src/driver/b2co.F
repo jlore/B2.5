@@ -34,6 +34,7 @@
       use eirmod_clogau
       use eirmod_ctrcei
       use eirmod_braeir
+      use eirmod_ccoupl
       use eirmod_cinit
      , , only: eirene_init_cinit, fort_lc
       use eirmod_comprt
@@ -295,6 +296,7 @@
 #ifdef B25_EIRENE
       CALL EIRENE_ALLOC_BRAEIR(nCv,nFc,NFL)
       CALL EIRENE_ALLOC_EIRBRA(nCv,NFL,NATM,NMOL,NION,NSTRA)
+      CALL EIRENE_ALLOC_CCOUPL(1)
       CALL EIRENE_ALLOC_CTRCEI(1)
       CALL EIRENE_ALLOC_CTRCEI(2)
       CALL EIRENE_SETCON
