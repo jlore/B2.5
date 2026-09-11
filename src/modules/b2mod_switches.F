@@ -473,6 +473,7 @@ c b2tqna
       integer :: b2tqna_new_df0
       integer :: b2tqna_ixref
       integer :: b2tqna_transport_inputfile
+      integer :: b2tqna_transport_input_fields
       integer :: b2tqna_ballooning_sig
       integer :: b2tqna_limit_coeff
 
@@ -1116,6 +1117,7 @@ c b2tqna
       s % b2tqna_new_df0 = 0
       s % b2tqna_ixref = 1
       s % b2tqna_transport_inputfile = 0
+      s % b2tqna_transport_input_fields = 0
       s % b2tqna_ballooning_sig = 1
       s % b2tqna_limit_coeff = 0
       s % bar_width = 0.0_R8
@@ -1805,6 +1807,8 @@ c b2tqna
       call ipgetr ('b2tqna_max_df0', s % b2tqna_max_df0)
       call ipgeti ('b2tqna_ixref', s % b2tqna_ixref)
       call ipgeti ('b2tqna_inputfile', s % b2tqna_transport_inputfile)
+      call ipgeti ('b2tqna_input_fields',
+     & s % b2tqna_transport_input_fields)
       call ipgetr ('b2tqna_ballooning', s % b2tqna_ballooning)
       call ipgetr ('b2tqna_bb_ref', s % b2tqna_bb_ref)
       call ipgetr ('b2tqna_ballooning_rescale',
@@ -2541,6 +2545,9 @@ c eirene_mc
      1   'faulty input neutral_sources_rescale')
 
 c b2tqna
+      call xertst (0.le.s%b2tqna_transport_input_fields .and.
+     &  s%b2tqna_transport_input_fields.le.2,
+     &  'b2tqna_input_fields must be either 0, 1 or 2')
       call xertst (0.0_R8.le.s%b2tqna_min_df0.and.s%b2tqna_min_df0.le.
      &   s%b2tqna_max_df0.and.s%b2tqna_max_df0.gt.0.0_R8,
      &   'Invalid range for b2tqna_min_df0 and/or b2tqna_max_df0')

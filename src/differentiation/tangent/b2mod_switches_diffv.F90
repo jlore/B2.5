@@ -551,6 +551,7 @@ MODULE B2MOD_SWITCHES_DIFFV
       INTEGER :: b2tqna_new_df0
       INTEGER :: b2tqna_ixref
       INTEGER :: b2tqna_transport_inputfile
+      INTEGER :: b2tqna_transport_input_fields
       INTEGER :: b2tqna_ballooning_sig
       INTEGER :: b2tqna_limit_coeff
       INTEGER :: anml_all_ions
@@ -1457,6 +1458,7 @@ CONTAINS
     s%b2tqna_new_df0 = 0
     s%b2tqna_ixref = 1
     s%b2tqna_transport_inputfile = 0
+    s%b2tqna_transport_input_fields = 0
     s%b2tqna_ballooning_sig = 1
     s%b2tqna_limit_coeff = 0
     s%bar_width = 0.0_R8
@@ -2160,6 +2162,7 @@ CONTAINS
     CALL IPGETR('b2tqna_max_df0', s%b2tqna_max_df0)
     CALL IPGETI('b2tqna_ixref', s%b2tqna_ixref)
     CALL IPGETI('b2tqna_inputfile', s%b2tqna_transport_inputfile)
+    CALL IPGETI('b2tqna_input_fields', s%b2tqna_transport_input_fields)
     CALL IPGETR('b2tqna_ballooning', s%b2tqna_ballooning)
     CALL IPGETR('b2tqna_bb_ref', s%b2tqna_bb_ref)
     CALL IPGETR('b2tqna_ballooning_rescale', s%b2tqna_ballooning_rescale&
@@ -2891,6 +2894,10 @@ CONTAINS
 &         'faulty input neutral_sources_rescale')
 !
 ! b2tqna
+! TODO: Generate differentiated support for two-dimensional transport
+! fields and remove this explicit rejection.
+    CALL XERTST(s%b2tqna_transport_input_fields .EQ. 0, &
+&         'b2tqna_input_fields is not supported by AD executables')
     CALL XERTST(0.0_R8 .LE. s%b2tqna_min_df0 .AND. s%b2tqna_min_df0 .LE.&
 &         s%b2tqna_max_df0 .AND. s%b2tqna_max_df0 .GT. 0.0_R8, &
 &         'Invalid range for b2tqna_min_df0 and/or b2tqna_max_df0')

@@ -5,3 +5,4 @@ Added new PARDISO solver option
 Added b2mod_blns which produces the tracing/blnn_SPb.trc file
 Added b2mod_convergence for potential equation inner iterations variables
 Added b2mod_plasma_netcdf for optional final b2fplasma.nc output
+Added b2mod_input_fields for two-dimensional transport input

@@ -9,6 +9,7 @@
       use b2mod_math
       use b2mod_transport_namelist
       use b2mod_input_profile
+      use b2mod_input_fields, only: transport_input_fields
       use b2mod_constants
       use b2mod_time
       use b2mod_b2cmpa
@@ -455,12 +456,29 @@ cxpb Corrected for dimensionality
       if(switch%b2tqna_transport_inputfile.eq.1) then
         call transport_input(nCv, ns, geo, mpg, pl, dv, rt, hcib,
      &   dna0, dpa0, vla0, vsa0, hci0, hce0, sig0, alf0, ncall_b2tqna)
-*     ..recompute hci0, hcn0
+      endif
+
+
+      if (switch%b2tqna_transport_input_fields.eq.1) then
+*       Mode 1 allows only complete nCv fields.
+        call transport_input_fields(nCv, ns, pl, rt, dv,
+     &   .false., dna0, dpa0, vla0, vma0, vsa0,
+     &   hcib, hvi0, hce0, hve0, sig0, alf0)
+      elseif (switch%b2tqna_transport_input_fields.eq.2) then
+*       Mode 2 allows partial nCv fields.
+        call transport_input_fields(nCv, ns, pl, rt, dv,
+     &   .true., dna0, dpa0, vla0, vma0, vsa0,
+     &   hcib, hvi0, hce0, hve0, sig0, alf0)
+      endif
+
+      if (switch%b2tqna_transport_inputfile.eq.1 .or.
+     &    switch%b2tqna_transport_input_fields.ne.0) then
+*     ..recompute hci0 and hcn0 after all external transport inputs
         hci0 = 0.0_R8
         hcn0 = 0.0_R8
         do is = 0, ns-1
 *       ..re-compute hci0
-          if (switch%tn_style.eq.0) then              !! default combined ion-neutral, add neutral contribution to "total" hci0
+          if (switch%tn_style.eq.0) then
             hci0 = hci0 + hcib(:,is)
           elseif (switch%tn_style.eq.1) then
             if (.not.is_neutral(is))then

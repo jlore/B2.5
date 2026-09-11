@@ -1053,6 +1053,18 @@
 				</description>
 			</switch>
 			<switch>
+				<name>b2tqna_input_fields</name>
+				<default>0</default>
+				<type>integer</type>
+				<description>
+					Reads cell-by-cell transport coefficients from the transport namelist in b2.transport.fields. A value of 0 disables the input. A value of 1 requires every supplied coefficient field to contain all nCv cells, including guard cells. A value of 2 permits partial fields and preserves the previously calculated coefficient wherever a value is omitted.
+					The input arrays are dna(nCv,0:ns-1), dpa(nCv,0:ns-1), vla(nCv,0:1,0:ns-1), vma(nCv,0:1,0:ns-1), vsa(nCv,0:ns-1), hci(nCv,0:ns-1), hvi(nCv,0:1), hce(nCv), hve(nCv,0:1), sig(nCv), and alf(nCv). The first index follows the exact B2.5 iCv ordering of the running grid. Direction 0 is poloidal and direction 1 is radial. Species indices start at 0.
+					DNA, DPA, VSA, HCI, HCE, SIG, and ALF are supplied as effective transport coefficients in m^2/s. VLA and VMA are anomalous velocities, HVI is the all-atom thermal strange velocity, and HVE is the electron thermal strange velocity; these four fields are supplied in m/s. The file and species mappings are read once. At every transport evaluation, the reader converts the cached effective coefficients to the internal B2.5 coefficients using the current local plasma state. Diffusivities, viscosity, and conductivity must be non-negative; velocity-like fields and ALF may be signed.
+					The optional *_ns arrays map a target species to a directly supplied source species, for example hci_ns(2)=1. The allowed values are -1 for no mapping or a source index from 0 through ns-1. Mappings use the original source field and do not chain through other mappings.
+					The file must be generated for the same grid, cell ordering, guard-cell convention, and species ordering as the run. The imported fields override the default coefficients and b2.transport.inputfile, but subsequent user-transport, k-epsilon, AFN, ballooning, and minimum-coefficient operations can modify them. This input is rejected by differentiated executables until AD support is generated.
+				</description>
+			</switch>
+			<switch>
 				<name>b2mndr_eirene</name>
 				<default>0</default>
 				<type>integer</type>
