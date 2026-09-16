@@ -456,6 +456,7 @@
       type (geometry), intent (inout) :: gm
       integer :: i, j, k, l, nCv, nFc, nVx, nFx,
      &           iCv, iFc, iVx, inCv, iXpt, iFc1, iFc2, iVx1, iVx2, iFt,
+     &           iCvFpsiRef, iCvFpsiMax, iFtFpsiMax, nCvFpsiWarn,
      &           inv_dist(mpg%nVx)
       integer :: count_up, count_down, count_eq, ndivStrVx,
      &           ndivStr, ndivTg, tXptVx
@@ -465,10 +466,12 @@
       integer, save :: temp_ignore_geo = 0
       real (kind=R8) :: hzconst, r0, z0, t0, dux, duy, du, sbf,
      .  Psi1, Psi2, dpsi(mpg%nCv),
-     .  dpsi_max_down, dpsi_max_up
+     .  dpsi_max_down, dpsi_max_up, cvFpsi_denom, cvFpsi_error,
+     .  cvFpsi_max_error
+      real (kind=R8), parameter :: cvFpsi_tol = 1.e-3_R8
       logical active, match_found
       logical, allocatable :: isPrimaryXpoint(:)
-      intrinsic maxval, abs, sqrt
+      intrinsic maxval, abs, sqrt, max, huge
       external b2xbzb, intface, intvertex, ipgeti, xerrab, xertst
 
       call ipgeti ('b2mndr_temp_ignore_geo', temp_ignore_geo)
@@ -538,18 +541,65 @@
       enddo
 
 *   ..precompute psi for flux tube
+* ORNL_ONLY: replace exact equality diagnostics with one tolerance-based
+*     summary so valid unstructured-grid variation does not flood output.
+*     A cell spans the psi interval cvFpsi +/- dpsi/2.  The normalized
+*     error below is the fractional gap between the cell interval and
+*     the reference-cell interval:
+*       max(0, 2*abs(cvFpsi-cell - cvFpsi-ref)/
+*                    (dpsi-cell + dpsi-ref) - 1).
+*     It is zero when the intervals overlap and positive when they are
+*     disjoint.  cvFpsi_tol is the allowed fractional gap.
+      nCvFpsiWarn = 0
+      cvFpsi_max_error = 0._R8
       do iFt = 1, mpg%nFt
-        gm%ftFpsi(iFt) = gm%cvFpsi(mpg%ftCv(mpg%ftCvP(iFt,1)))
+        iCvFpsiRef = mpg%ftCv(mpg%ftCvP(iFt,1))
+        gm%ftFpsi(iFt) = gm%cvFpsi(iCvFpsiRef)
         do i = 1, mpg%ftCvP(iFt,2)
           iCv = mpg%ftCv(mpg%ftCvP(iFt,1)+i-1)
-          if (gm%cvFpsi(iCv).ne.gm%ftFpsi(iFt)) then
-            write (*,'(a,i6,a,i4)')
-     &       'Warning: cvFpsi value in cell ', iCv,
-     &       ' not equal to value in its flux tube ', iFt
-            write (*,*) gm%cvFpsi(iCv), gm%ftFpsi(iFt)
+          cvFpsi_denom = dpsi(iCv) + dpsi(iCvFpsiRef)
+          if (cvFpsi_denom.gt.0._R8) then
+            cvFpsi_error = max(0._R8, 2._R8 *
+     &        abs(gm%cvFpsi(iCv)-gm%ftFpsi(iFt))/cvFpsi_denom -
+     &        1._R8)
+          elseif (gm%cvFpsi(iCv).eq.gm%ftFpsi(iFt)) then
+            cvFpsi_error = 0._R8
+          else
+            cvFpsi_error = huge(1._R8)
+          endif
+          if (cvFpsi_error.gt.cvFpsi_tol) then
+            nCvFpsiWarn = nCvFpsiWarn + 1
+            if (cvFpsi_error.gt.cvFpsi_max_error) then
+              cvFpsi_max_error = cvFpsi_error
+              iCvFpsiMax = iCv
+              iFtFpsiMax = iFt
+            endif
           endif
         enddo
       enddo
+      if (nCvFpsiWarn.gt.0) then
+        iCvFpsiRef = mpg%ftCv(mpg%ftCvP(iFtFpsiMax,1))
+        write (*,'(/,a)')
+     &    '*** WARNING: inconsistent flux-tube psi intervals ***'
+        write (*,'(a,i8)') '  cells exceeding tolerance: ',
+     &    nCvFpsiWarn
+        write (*,'(a,es12.4)') '  allowed fractional gap: ',
+     &    cvFpsi_tol
+        write (*,'(a,es12.4)') '  maximum fractional gap: ',
+     &    cvFpsi_max_error
+        write (*,'(a,i8,a,i6)') '  maximum at cell ', iCvFpsiMax,
+     &    ' in flux tube ', iFtFpsiMax
+        write (*,'(a,i8)') '  reference cell: ', iCvFpsiRef
+        write (*,'(a)')
+     &    '  gap normalization: (dpsi(cell) + dpsi(ref))/2'
+        write (*,'(a,2es16.7)') '  cvFpsi(cell), cvFpsi(ref): ',
+     &    gm%cvFpsi(iCvFpsiMax), gm%cvFpsi(iCvFpsiRef)
+        write (*,'(a,2es16.7)') '  dpsi(cell), dpsi(ref): ',
+     &    dpsi(iCvFpsiMax), dpsi(iCvFpsiRef)
+        write (*,'(a/)')
+     &    '*** Run continues; inspect the magnetic geometry. ***'
+        call flush(6)
+      endif
 
 *   ..set weights for interpolation to vertices
       if (switch%vxVol_style.eq.0) then

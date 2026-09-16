@@ -2531,14 +2531,17 @@ CONTAINS
     TYPE(MAPPING), INTENT(INOUT) :: mpg
     TYPE(GEOMETRY), INTENT(INOUT) :: gm
     INTEGER :: i, j, k, l, ncv, nfc, nvx, nfx, icv, ifc, ivx, incv, ixpt&
-&   , ifc1, ifc2, ivx1, ivx2, ift, inv_dist(mpg%nvx)
+&   , ifc1, ifc2, ivx1, ivx2, ift, icvfpsiref, icvfpsimax, iftfpsimax, &
+&   ncvfpsiwarn, inv_dist(mpg%nvx)
     INTEGER :: count_up, count_down, count_eq
     INTEGER, ALLOCATABLE :: old_face_list(:), verts(:)
     INTEGER, SAVE :: temp_ignore_geo=0
     REAL(kind=r8) :: hzconst, r0, z0, t0, dux, duy, du, sbf, psi1, psi2&
-&   , dpsi(mpg%ncv), dpsi_max_down, dpsi_max_up
+&   , dpsi(mpg%ncv), dpsi_max_down, dpsi_max_up, cvfpsi_denom, &
+&   cvfpsi_error, cvfpsi_max_error
+    REAL(kind=r8), PARAMETER :: cvfpsi_tol=1.e-3_R8
     LOGICAL :: active, match_found
-    INTRINSIC MAXVAL, ABS, SQRT
+    INTRINSIC MAXVAL, ABS, SQRT, MAX, HUGE
     EXTERNAL B2XBZB_NODIFF_NODIFF, INTFACE, INTVERTEX_NODIFF_NODIFF, &
 &       IPGETI, XERRAB, XERTST
     INTRINSIC MOD
@@ -2626,17 +2629,59 @@ CONTAINS
     END DO
 !
 !   ..precompute psi for flux tube
+! ORNL_ONLY: replace exact equality diagnostics with one tolerance-based
+! summary so valid unstructured-grid variation does not flood output.
+! A cell spans the psi interval cvFpsi +/- dpsi/2.  The normalized error
+! is the fractional gap between the cell and reference-cell intervals:
+! max(0, 2*abs(cvFpsi-cell-cvFpsi-ref)/(dpsi-cell+dpsi-ref)-1).
+! It is zero for overlapping intervals; cvfpsi_tol is the allowed gap.
+    ncvfpsiwarn = 0
+    cvfpsi_max_error = 0._R8
     DO ift=1,mpg%nft
-      gm%ftfpsi(ift) = gm%cvfpsi(mpg%ftcv(mpg%ftcvp(ift, 1)))
+      icvfpsiref = mpg%ftcv(mpg%ftcvp(ift, 1))
+      gm%ftfpsi(ift) = gm%cvfpsi(icvfpsiref)
       DO i=1,mpg%ftcvp(ift, 2)
         icv = mpg%ftcv(mpg%ftcvp(ift, 1)+i-1)
-        IF (gm%cvfpsi(icv) .NE. gm%ftfpsi(ift)) THEN
-          WRITE(*, '(a,i6,a,i4)') 'Warning: cvFpsi value in cell ', icv&
-&         , ' not equal to value in its flux tube ', ift
-          WRITE(*, *) gm%cvfpsi(icv), gm%ftfpsi(ift)
+        cvfpsi_denom = dpsi(icv) + dpsi(icvfpsiref)
+        IF (cvfpsi_denom .GT. 0._R8) THEN
+          cvfpsi_error = MAX(0._R8, 2._R8*ABS(gm%cvfpsi(icv)-gm%ftfpsi&
+&           (ift))/cvfpsi_denom-1._R8)
+        ELSE IF (gm%cvfpsi(icv) .EQ. gm%ftfpsi(ift)) THEN
+          cvfpsi_error = 0._R8
+        ELSE
+          cvfpsi_error = HUGE(1._R8)
+        END IF
+        IF (cvfpsi_error .GT. cvfpsi_tol) THEN
+          ncvfpsiwarn = ncvfpsiwarn + 1
+          IF (cvfpsi_error .GT. cvfpsi_max_error) THEN
+            cvfpsi_max_error = cvfpsi_error
+            icvfpsimax = icv
+            iftfpsimax = ift
+          END IF
         END IF
       END DO
     END DO
+    IF (ncvfpsiwarn .GT. 0) THEN
+      icvfpsiref = mpg%ftcv(mpg%ftcvp(iftfpsimax, 1))
+      WRITE(*, '(/,a)') &
+&       '*** WARNING: inconsistent flux-tube psi intervals ***'
+      WRITE(*, '(a,i8)') '  cells exceeding tolerance: ', ncvfpsiwarn
+      WRITE(*, '(a,es12.4)') '  allowed fractional gap: ', cvfpsi_tol
+      WRITE(*, '(a,es12.4)') '  maximum fractional gap: ', &
+&       cvfpsi_max_error
+      WRITE(*, '(a,i8,a,i6)') '  maximum at cell ', icvfpsimax, &
+&       ' in flux tube ', iftfpsimax
+      WRITE(*, '(a,i8)') '  reference cell: ', icvfpsiref
+      WRITE(*, '(a)') &
+&       '  gap normalization: (dpsi(cell) + dpsi(ref))/2'
+      WRITE(*, '(a,2es16.7)') '  cvFpsi(cell), cvFpsi(ref): ', &
+&       gm%cvfpsi(icvfpsimax), gm%cvfpsi(icvfpsiref)
+      WRITE(*, '(a,2es16.7)') '  dpsi(cell), dpsi(ref): ', &
+&       dpsi(icvfpsimax), dpsi(icvfpsiref)
+      WRITE(*, '(a/)') &
+&       '*** Run continues; inspect the magnetic geometry. ***'
+      CALL FLUSH(6)
+    END IF
 !
 !   ..set weights for interpolation to vertices
     IF (switch%vxvol_style .EQ. 0) THEN
@@ -3827,4 +3872,3 @@ CONTAINS
 !
 
 END MODULE B2US_GEO_DIFFV_DIFFV
-
