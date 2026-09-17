@@ -25,12 +25,13 @@
       integer status, ncid, xtypev, ndims, nvars, natts, unlimid, timd
       integer dimids(NF_MAX_VAR_DIMS), dimsize(NF_MAX_VAR_DIMS)
       integer, save :: ntstep
-      real (kind=R8) :: tim_arr(1)
+      real (kind=R8) :: tim_arr(1), b2vdp_arr(1)
       real (kind=R8) :: naregtmp(0:mpg%nnreg(0),0:ns-1)
       real (kind=R8) :: cdftmp(0:mpg%nnreg(0))
       character*(NF_MAX_NAME) :: dimname(1), varname
       character*256 filename
-      logical :: ex
+      character*8 cdf_action
+      logical :: ex, pot_missing, b2vdp_missing
       logical streql
       external streql
 #endif
@@ -458,6 +459,11 @@
         rdneureg(0)=rdneureg(0)+rdneureg(ir)
       enddo
 *    ..write tallies
+c The complete regional array dump is a diagnostic view of data
+c available in b2tallies.nc when requested.  Reserve it for maximum ORNL
+c verbosity; wide, mostly-zero arrays can otherwise dominate run.log.
+c arrays can otherwise dominate run.log.
+      if (switch%output_level_ornl.ge.10) then
       write(*,tally_format) 'Start tallies by region'
       write(*,'(a,2(1x,i2))') 'nnreg',mpg%nnreg
       write(*,species_format) 'species',ns,
@@ -546,22 +552,26 @@
       write(*,tally_format) 'respo_reg',respo_reg
       write(*,tally_format) 'rdneureg',rdneureg
       write(*,tally_format) 'End tallies by region'
+      endif
       deallocate(tef,tif,tnf,rzf)
       if (allocated(eaf)) deallocate(ea,eaf,ptf)
 
 #ifndef NO_CDF
       if(tallies_netcdf.ne.0) then
         if(ncall.eq.0.or.mod(ncall,tallies_netcdf).eq.0) then
-          write(*,tally_format) 'Start (CDF) tallies by region'
+          if (switch%output_level_ornl.ge.10)
+     *      write(*,tally_format) 'Start (CDF) tallies by region'
           filename='b2tallies.nc'
           call find_file(filename,ex)
           if(ncall.eq.0) then
+            pot_missing=.false.
+            b2vdp_missing=.false.
             if (.not.ex.or.switch%b2mndr_stim.ge.0.0_R8) then
               ntstep = 0
               call define_cdf_b2mod_tallies(filename,ncid,mpg%nnreg,ns)
               status=nf_open(filename,or(NF_WRITE,NF_SHARE),ncid)
               call check_cdf_status(status)
-              write(6,'(a)') trim(filename)//' will be created'
+              cdf_action='created'
             else if (ex.and.switch%b2mndr_stim.lt.0.0_R8) then
               status=nf_open(filename,NF_NOWRITE,ncid)
               call check_cdf_status(status)
@@ -581,17 +591,47 @@
               call check_cdf_status(status)
               status=nf_open(filename,or(NF_WRITE,NF_SHARE),ncid)
               call check_cdf_status(status)
-              write(6,'(a)') trim(filename)//' will be appended'
+              status=nf_inq_varid(ncid,'pot',timd)
+              pot_missing=status.ne.NF_NOERR
+              status=nf_inq_varid(ncid,'b2vdp',timd)
+              b2vdp_missing=status.ne.NF_NOERR
+c Add fields introduced after older tally files were created so that
+c restart/append runs remain compatible with the previous schema.
+              if (pot_missing.or.b2vdp_missing) then
+                status=nf_redef(ncid)
+                call check_cdf_status(status)
+                if (pot_missing) then
+                  status=nf_inq_dimid(ncid,'ns',dimids(1))
+                  call check_cdf_status(status)
+                  call create_cdf_var_with_attrs(
+     *              ncid,'pot',NF_DOUBLE,1,dimids,'eV',
+     *              'Average cumulative ionisation cost')
+                endif
+                if (b2vdp_missing) then
+                  status=nf_inq_dimid(ncid,'time',dimids(1))
+                  call check_cdf_status(status)
+                  call create_cdf_var_with_attrs(
+     *              ncid,'b2vdp',NF_DOUBLE,1,dimids,'W',
+     *              'Electric-field electron/ion energy exchange')
+                endif
+                status=nf_enddef(ncid)
+                call check_cdf_status(status)
+              endif
+              cdf_action='append'
             else
               ntstep = 0
-              write(6,'(a)') trim(filename)//' will be replaced'
+              cdf_action='replaced'
               call define_cdf_b2mod_tallies(filename,ncid,mpg%nnreg,ns)
               status=nf_open(filename,or(NF_WRITE,NF_SHARE),ncid)
               call check_cdf_status(status)
             end if
-            write(6,'(a,i8)') trim(filename)//' : ntstep = ', ntstep
+            write(6,'(a,1x,a,a,i8)') trim(filename),trim(cdf_action),
+     *        ': existing records = ',ntstep
             if (ntstep.eq.0) call write_cdf_char_variable(ncid,-1,
      *       'species',species_name(0:ns-1))
+            if (ntstep.eq.0.or.pot_missing)
+     *        call write_cdf_variable(ncid,-1,
+     *       'pot',potave(0:ns-1))
           else
             status=nf_open(filename,or(NF_WRITE,NF_SHARE),ncid)
             call check_cdf_status(status)
@@ -724,8 +764,9 @@
      *     'b2radreg',b2radreg)
           call write_cdf_variable(ncid,ntstep,
      *     'b2qie',b2qie)
-!       call write_cdf_variable(ncid,ntstep,
-!     *  'b2vdp',b2vdp)
+          b2vdp_arr(1)=b2vdp
+          call write_cdf_variable(ncid,ntstep,
+     *     'b2vdp',b2vdp_arr)
           call write_cdf_variable(ncid,ntstep,
      *     'b2divue',b2divue)
           call write_cdf_variable(ncid,ntstep,
@@ -770,7 +811,8 @@
      *     'respo_reg',respo_reg)
           call write_cdf_variable(ncid,ntstep,
      *     'rdneureg',rdneureg)
-          write(*,tally_format) 'End (CDF) tallies by region'
+          if (switch%output_level_ornl.ge.10)
+     *      write(*,tally_format) 'End (CDF) tallies by region'
 
           status=nf_close(ncid)
           call check_cdf_status(status)

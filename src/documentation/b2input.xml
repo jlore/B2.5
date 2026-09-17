@@ -3687,7 +3687,7 @@
 				<default>0</default>
 				<type>integer</type>
 				<description>
-					ORNL-only high-level verbosity control for optional informational and debug output. Valid values range from 0 (minimum production output) to 10 (maximum diagnostic output). Higher values include output enabled at lower levels. Warnings and errors are always printed independently of this setting. Exhaustive boundary-face and flux-tube topology listings require level 10. At levels below 10, WRITE_NML_BND, WRITE_NML_NEUT, WRITE_NML_NUM, and WRITE_NML_TRANSP are initialized to .false.; level 10 retains their legacy .true. defaults. Values specified in the individual namelist files override these high-level defaults.
+					ORNL-only high-level verbosity control for optional informational and debug output. Valid values range from 0 (minimum production output) to 10 (maximum diagnostic output). Higher values include output enabled at lower levels. Warnings and errors are always printed independently of this setting. Exhaustive boundary-face, flux-tube topology, and regional-tally text listings require level 10. The tallies_netcdf switch independently controls whether regional tallies are retained in b2tallies.nc. At levels below 10, WRITE_NML_BND, WRITE_NML_NEUT, WRITE_NML_NUM, and WRITE_NML_TRANSP are initialized to .false.; level 10 retains their legacy .true. defaults. Values specified in the individual namelist files override these high-level defaults.
 				</description>
 			</switch>
 			<switch>

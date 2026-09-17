@@ -432,6 +432,16 @@
       call create_cdf_var_with_attrs(
      *  ncid,'species',NF_CHAR,
      *  2,vdims,'','Species')
+      vdims(1)=nsid
+      call create_cdf_var_with_attrs(
+     *  ncid,'pot',NF_DOUBLE,
+     *  1,vdims,'eV','Average cumulative ionisation cost')
+
+      vdims(1)=tid
+      call create_cdf_var_with_attrs(
+     *  ncid,'b2vdp',NF_DOUBLE,
+     *  1,vdims,'W',
+     *  'Electric-field electron/ion energy exchange')
 
       vdims(1)=vregid
       vdims(2)=tid
