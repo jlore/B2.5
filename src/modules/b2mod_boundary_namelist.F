@@ -1016,7 +1016,6 @@ c.. Test consistency with region boundaries
             noss = bcend(ib) - bcstart(ib) + 1
             do iss = 1, noss
               indss = bcstart(ib)+iss-1
-              write (*,*) ' surface index ',indss
 ! find all faces belonging to surface structure INDSS
               call find_faces (indss, inbc, nbcfc,
      >             m%mxnbc, m%bcFc, m%bcFcOr, m, idb)
@@ -1394,7 +1393,6 @@ cwdk also need to correct for degenerate faces?
           noss = bcend(ib) - bcstart(ib) + 1
           do iss = 1, noss
             indss = bcstart(ib)+iss-1
-            write (*,*) ' surface index ',indss
 !  find all faces belonging to surface structure INDSS
             call find_faces (indss, inbc, bcl(ib),
      >                       m%mxnbc, m%bcFc, m%bcFcOr, m, idb)

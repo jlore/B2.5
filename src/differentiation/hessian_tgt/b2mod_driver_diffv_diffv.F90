@@ -48,6 +48,7 @@ MODULE B2MOD_DRIVER_DIFFV_DIFFV
   USE B2MOD_TRANSPORT_MODELS
   USE B2MOD_NEUTR_SRC_SCALING
   USE B2MOD_NEUTRALS_NAMELIST_DIFFV_DIFFV
+  USE B2MOD_NUMERICS_NAMELIST_DIFFV_DIFFV, ONLY : write_nml_num
   USE B2MOD_TRANSPORT_NAMELIST_DIFFV_DIFFV
   USE B2MOD_TRANSPORT_DISRUPTION_DIFFV_DIFFV, ONLY : &
 & dealloc_b2mod_transport_disruption
@@ -3379,6 +3380,15 @@ CONTAINS
 !     (Note that the internal parameters are only defined following
 !     the call to b2mnds.)
     IF (ncall .EQ. 0) THEN
+! At normal ORNL output levels, suppress the full namelist echoes by
+! default. Each namelist is read later, so an explicit WRITE_NML_*
+! setting in its specific input file overrides these defaults.
+      IF (switch%output_level_ornl .LT. 10) THEN
+        write_nml_bnd = .false.
+        write_nml_neut = .false.
+        write_nml_num = .false.
+        write_nml_transp = .false.
+      END IF
       CALL PRINT_OPENMP_INFO()
       CALL CREATEB2COEFF_NSPECIES_DV_DV(ncv, nfc, nspecies, state%co_ns&
 &                                 , stated0%co_ns, stated%co_ns, statedd&
@@ -5266,6 +5276,15 @@ CONTAINS
 !     (Note that the internal parameters are only defined following
 !     the call to b2mnds.)
     IF (ncall .EQ. 0) THEN
+! At normal ORNL output levels, suppress the full namelist echoes by
+! default. Each namelist is read later, so an explicit WRITE_NML_*
+! setting in its specific input file overrides these defaults.
+      IF (switch%output_level_ornl .LT. 10) THEN
+        write_nml_bnd = .false.
+        write_nml_neut = .false.
+        write_nml_num = .false.
+        write_nml_transp = .false.
+      END IF
       CALL PRINT_OPENMP_INFO()
       CALL CREATEB2COEFF_NSPECIES_DV(ncv, nfc, nspecies, state%co_ns, &
 &                              stated%co_ns, nbdirs)
@@ -7082,6 +7101,15 @@ CONTAINS
 !     (Note that the internal parameters are only defined following
 !     the call to b2mnds.)
     IF (ncall .EQ. 0) THEN
+! At normal ORNL output levels, suppress the full namelist echoes by
+! default. Each namelist is read later, so an explicit WRITE_NML_*
+! setting in its specific input file overrides these defaults.
+      IF (switch%output_level_ornl .LT. 10) THEN
+        write_nml_bnd = .false.
+        write_nml_neut = .false.
+        write_nml_num = .false.
+        write_nml_transp = .false.
+      END IF
       CALL PRINT_OPENMP_INFO()
       CALL CREATEB2COEFF_NSPECIES_DV0(ncv, nfc, nspecies, state%co_ns, &
 &                               stated0%co_ns, nbdirs)
@@ -14491,4 +14519,3 @@ CONTAINS
 !
 
 END MODULE B2MOD_DRIVER_DIFFV_DIFFV
-

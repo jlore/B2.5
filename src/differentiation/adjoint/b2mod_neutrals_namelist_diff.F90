@@ -1182,7 +1182,6 @@ CONTAINS
           noss = rcend(istra) - rcstart(istra) + 1
           DO iss=1,noss
             indss = rcstart(istra) + iss - 1
-            WRITE(*, *) ' surface index ', indss
 ! find all faces belonging to surface structure INDSS
             CALL FIND_FACES(indss, instra, nrcl, m%mxnrc, m%rcfc, m%&
 &                     rcfcor, m, idb)
@@ -1613,7 +1612,6 @@ CONTAINS
           noss = rcend(istra) - rcstart(istra) + 1
           DO iss=1,noss
             indss = rcstart(istra) + iss - 1
-            WRITE(*, *) ' surface index ', indss
 ! find all faces belonging to surface structure INDSS
             CALL FIND_FACES(indss, instra, nrcl, m%mxnrc, m%rcfc, m%&
 &                     rcfcor, m, idb)
@@ -2235,7 +2233,6 @@ CONTAINS
         noss = rcend(istra) - rcstart(istra) + 1
         DO iss=1,noss
           indss = rcstart(istra) + iss - 1
-          WRITE(*, *) ' surface index ', indss
 !  find all faces belonging to surface structure INDSS
           CALL FIND_FACES(indss, instra, rcl(istra), m%mxnrc, m%rcfc, m%&
 &                   rcfcor, m, idb)
@@ -2700,4 +2697,3 @@ CONTAINS
 !
 
 END MODULE B2MOD_NEUTRALS_NAMELIST_DIFF
-

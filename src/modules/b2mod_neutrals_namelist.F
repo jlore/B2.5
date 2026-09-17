@@ -1467,7 +1467,6 @@ cwvu    for (advanced) spatially hybrid, might need even more.
             noss = rcend(istra) - rcstart(istra) + 1
             do iss = 1, noss
               indss = rcstart(istra)+iss-1
-              write (*,*) ' surface index ',indss
 ! find all faces belonging to surface structure INDSS
               call find_faces (indss, instra, nrcl,
      >                       m%mxnrc,m%rcFc, m%rcFcOr, m, idb)
@@ -2136,7 +2135,6 @@ cwdk also need to correct for degenerate faces?
           noss = rcend(istra) - rcstart(istra) + 1
           do iss = 1, noss
             indss = rcstart(istra)+iss-1
-            write (*,*) ' surface index ',indss
 !  find all faces belonging to surface structure INDSS
             call find_faces (indss, instra, rcl(istra),
      >                       m%mxnrc,m%rcFc, m%rcFcOr, m, idb)

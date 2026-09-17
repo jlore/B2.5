@@ -16,6 +16,7 @@
       integer :: ncoss, icoss,
      .           iFc1, i, imn, imx,
      .           ncout, istart
+      integer, save :: output_level_ornl = 0
       integer, allocatable :: fcss(:), indfc(:)
       logical, allocatable :: lout(:)
       logical, allocatable :: lfchit(:)
@@ -29,10 +30,12 @@
       type(fcpart), pointer :: head, tail
       type(fcpart), pointer :: face
       intrinsic pack
+      external ipgeti
       
 !  find all faces belonging to surface structure INDSS
       ncoss = count(m%fcLbl == indss)
       if (ncoss.eq.0) return
+      call ipgeti ('output_level_ornl', output_level_ornl)
       allocate (fcss(ncoss))
       allocate (indfc(m%nFc))
       indfc = [(i,i=1,m%nFc)]
@@ -93,10 +96,14 @@
             end if
           end do                ! icoss
           if (icoss > ncoss) then
-            write (*,*) 'face list, indss = ',indss
-            write (idb,*) 'face list, indss = ',indss
+! ORNL_ONLY: suppress exhaustive per-face diagnostics below level 10.
+            if (output_level_ornl.ge.10) then
+              write (*,*) 'face list, indss = ',indss
+              write (idb,*) 'face list, indss = ',indss
+            endif
             do while (associated(head))
-              write (*,*) head%fcno, head%vx1, head%vx2
+              if (output_level_ornl.ge.10)
+     .          write (*,*) head%fcno, head%vx1, head%vx2
 !              write (idb,'(i6,2es16.7)')
 !     .             head%vx1,g%vxX(head%vx1),g%vxY(head%vx1)
 !              write (idb,'(i6,2es16.7)')

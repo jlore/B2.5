@@ -30,6 +30,8 @@
       use b2mod_transport_models
       use b2mod_neutr_src_scaling
       use b2mod_neutrals_namelist
+      use b2mod_numerics_namelist
+     & , only : write_nml_num
       use b2mod_transport_namelist
       use b2mod_transport_disruption
      & , only : dealloc_b2mod_transport_disruption
@@ -983,6 +985,15 @@
 *     (Note that the internal parameters are only defined following
 *     the call to b2mnds.)
       if (ncall.eq.0) then
+c At normal ORNL output levels, suppress the full namelist echoes by
+c default.  Each namelist is read later, so an explicit WRITE_NML_*
+c setting in its specific input file overrides these defaults.
+       if (switch%output_level_ornl.lt.10) then
+        write_nml_bnd = .false.
+        write_nml_neut = .false.
+        write_nml_num = .false.
+        write_nml_transp = .false.
+       endif
        call print_openmp_info()
        call createB2Coeff_nspecies(nCv, nFc, nspecies, state % co_ns)
        if (switch%Zhdanov_closure.eq.1) then

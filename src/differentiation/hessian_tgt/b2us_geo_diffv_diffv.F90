@@ -3452,13 +3452,16 @@ CONTAINS
       END IF
     END IF
 !
-    WRITE(*, *) 'list of boundary faces in one flux tube and type:'
-    DO j=1,mpg%nfci
-      WRITE(*, '(4i4)') j, mpg%fcs_wall_ind(j, 1), mpg%fcs_wall_ind(j, 2&
-&     ), mpg%fcs_wall_type(j)
-      WRITE(*, *) mpg%fcs_wall(mpg%fcs_wall_ind(j, 1):mpg%fcs_wall_ind(j&
-&     , 1)+mpg%fcs_wall_ind(j, 2)-1)
-    END DO
+! ORNL_ONLY: this exhaustive, per-face topology dump is level 10 output.
+    IF (switch%output_level_ornl .GE. 10) THEN
+      WRITE(*, *) 'list of boundary faces in one flux tube and type:'
+      DO j=1,mpg%nfci
+        WRITE(*, '(4i4)') j, mpg%fcs_wall_ind(j, 1), mpg%fcs_wall_ind(j, &
+&         2), mpg%fcs_wall_type(j)
+        WRITE(*, *) mpg%fcs_wall(mpg%fcs_wall_ind(j, 1):mpg%fcs_wall_ind&
+&         (j, 1)+mpg%fcs_wall_ind(j, 2)-1)
+      END DO
+    END IF
     RETURN
   END SUBROUTINE INIT_GEOMETRY
 

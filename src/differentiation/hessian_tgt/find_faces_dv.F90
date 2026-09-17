@@ -25,6 +25,7 @@ SUBROUTINE FIND_FACES_NODIFF(indss, inbc, bcl, ndfc, fc, fcor, m, idb)
   TYPE(MAPPING), INTENT(INOUT) :: m
 !
   INTEGER :: ncoss, icoss, ifc1, i, imn, imx, ncout, istart
+  INTEGER, SAVE :: output_level_ornl=0
   INTEGER, ALLOCATABLE :: fcss(:), indfc(:)
   LOGICAL, ALLOCATABLE :: lout(:)
   LOGICAL, ALLOCATABLE :: lfchit(:)
@@ -42,11 +43,13 @@ SUBROUTINE FIND_FACES_NODIFF(indss, inbc, bcl, ndfc, fc, fcor, m, idb)
   INTRINSIC MAX
   INTRINSIC ASSOCIATED
   INTRINSIC ALLOCATED
+  EXTERNAL IPGETI
 !  find all faces belonging to surface structure INDSS
   ncoss = COUNT(m%fclbl .EQ. indss)
   IF (ncoss .EQ. 0) THEN
     RETURN
   ELSE
+    CALL IPGETI('output_level_ornl', output_level_ornl)
     ALLOCATE(fcss(ncoss))
     ALLOCATE(indfc(m%nfc))
     indfc = (/(i, i=1,m%nfc)/)
@@ -114,10 +117,14 @@ SUBROUTINE FIND_FACES_NODIFF(indss, inbc, bcl, ndfc, fc, fcor, m, idb)
           END IF
         END DO
  100    IF (icoss .GT. ncoss) THEN
-          WRITE(*, *) 'face list, indss = ', indss
-          WRITE(idb, *) 'face list, indss = ', indss
+! ORNL_ONLY: suppress exhaustive per-face diagnostics below level 10.
+          IF (output_level_ornl .GE. 10) THEN
+            WRITE(*, *) 'face list, indss = ', indss
+            WRITE(idb, *) 'face list, indss = ', indss
+          END IF
           DO WHILE (ASSOCIATED(head))
-            WRITE(*, *) head%fcno, head%vx1, head%vx2
+            IF (output_level_ornl .GE. 10) &
+&             WRITE(*, *) head%fcno, head%vx1, head%vx2
 !              write (idb,'(i6,2es16.7)')
 !     .             head%vx1,g%vxX(head%vx1),g%vxY(head%vx1)
 !              write (idb,'(i6,2es16.7)')
@@ -164,4 +171,3 @@ SUBROUTINE FIND_FACES_NODIFF(indss, inbc, bcl, ndfc, fc, fcor, m, idb)
     END IF
   END IF
 END SUBROUTINE FIND_FACES_NODIFF
-

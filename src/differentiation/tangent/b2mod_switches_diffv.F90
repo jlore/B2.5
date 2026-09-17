@@ -348,6 +348,7 @@ MODULE B2MOD_SWITCHES_DIFFV
       INTEGER :: eirene_mc_iout
       INTEGER :: b2siav_iout
       INTEGER :: b2mndr_iout
+      INTEGER :: output_level_ornl
       INTEGER :: b2scdt_iout
       INTEGER :: b2smdt_iout
       INTEGER :: b2shdt_iout
@@ -1210,6 +1211,7 @@ CONTAINS
     s%eirene_mc_iout = 0
     s%b2siav_iout = 0
     s%b2mndr_iout = 0
+    s%output_level_ornl = 0
     s%b2scdt_iout = 0
     s%b2smdt_iout = 0
     s%b2shdt_iout = 0
@@ -1918,6 +1920,7 @@ CONTAINS
     CALL IPGETI('copy_background_iout', s%copy_background_iout)
     CALL IPGETI('eirene_mc_iout', s%eirene_mc_iout)
     CALL IPGETI('b2mndr_iout', s%b2mndr_iout)
+    CALL IPGETI('output_level_ornl', s%output_level_ornl)
     CALL IPGETI('b2scdt_iout', s%b2scdt_iout)
     CALL IPGETI('b2smdt_iout', s%b2smdt_iout)
     CALL IPGETI('b2shdt_iout', s%b2shdt_iout)
@@ -2516,6 +2519,13 @@ CONTAINS
     INTRINSIC MAX
     REAL(kind=r8) :: min1
     REAL(kind=r8) :: result1
+!
+! ORNL_ONLY: global verbosity for optional information and debug output.
+! Zero is minimum output and 10 is maximum; gates are monotonic.
+! Warnings and errors must not be gated by this switch.
+    CALL XERTST(s%output_level_ornl .GE. 0 .AND. &
+&               s%output_level_ornl .LE. 10, &
+&               'output_level_ornl should be between 0 and 10')
 !
 ! tn_style
 ! tn_style = 0: default combined ion-neutral energy equation
@@ -3170,4 +3180,3 @@ CONTAINS
 !
 
 END MODULE B2MOD_SWITCHES_DIFFV
-

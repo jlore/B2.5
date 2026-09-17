@@ -925,7 +925,6 @@ CONTAINS
           noss = bcend(ib) - bcstart(ib) + 1
           DO iss=1,noss
             indss = bcstart(ib) + iss - 1
-            WRITE(*, *) ' surface index ', indss
 ! find all faces belonging to surface structure INDSS
             CALL FIND_FACES(indss, inbc, nbcfc, m%mxnbc, m%bcfc, m%&
 &                     bcfcor, m, idb)
@@ -1119,7 +1118,6 @@ CONTAINS
           noss = bcend(ib) - bcstart(ib) + 1
           DO iss=1,noss
             indss = bcstart(ib) + iss - 1
-            WRITE(*, *) ' surface index ', indss
 ! find all faces belonging to surface structure INDSS
             CALL FIND_FACES(indss, inbc, nbcfc, m%mxnbc, m%bcfc, m%&
 &                     bcfcor, m, idb)
@@ -1568,7 +1566,6 @@ CONTAINS
         noss = bcend(ib) - bcstart(ib) + 1
         DO iss=1,noss
           indss = bcstart(ib) + iss - 1
-          WRITE(*, *) ' surface index ', indss
 !  find all faces belonging to surface structure INDSS
           CALL FIND_FACES(indss, inbc, bcl(ib), m%mxnbc, m%bcfc, m%&
 &                   bcfcor, m, idb)
@@ -1952,4 +1949,3 @@ CONTAINS
 !
 
 END MODULE B2MOD_BOUNDARY_NAMELIST_DIFF
-

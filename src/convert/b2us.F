@@ -246,6 +246,12 @@ c      hz = 1.0_R8*(1.0_R8-fac_hz)+fac_hz*vol/hx/hy
         call read_b2fgmtry (ninp(1), mpg, gm)
         switch%use_9pt_stencil = 1
         call ipgeti ('b2mndr_use_9pt_stencil', switch%use_9pt_stencil)
+* ORNL_ONLY: b2us does not call the centralized switch reader.
+        switch%output_level_ornl = 0
+        call ipgeti ('output_level_ornl', switch%output_level_ornl)
+        call xertst(switch%output_level_ornl.ge.0.and.
+     &    switch%output_level_ornl.le.10,
+     &    'output_level_ornl should be between 0 and 10')
         call init_geometry (mpg, gm, switch)
       endif
 

@@ -240,6 +240,7 @@ c iout switches
       integer :: eirene_mc_iout
       integer :: b2siav_iout
       integer :: b2mndr_iout
+      integer :: output_level_ornl
       integer :: b2mndr_b2fplasma_netcdf
       integer :: b2scdt_iout
       integer :: b2smdt_iout
@@ -875,6 +876,7 @@ c Zhdanov closure switches
       s % eirene_mc_iout = 0
       s % b2siav_iout = 0
       s % b2mndr_iout = 0
+      s % output_level_ornl = 0
       s % b2mndr_b2fplasma_netcdf = 0
       s % b2scdt_iout = 0
       s % b2smdt_iout = 0
@@ -1568,6 +1570,7 @@ c iout switches
       call ipgeti ('copy_background_iout', s % copy_background_iout)   !srv 14.07.10
       call ipgeti ('eirene_mc_iout', s % eirene_mc_iout)
       call ipgeti ('b2mndr_iout', s % b2mndr_iout)
+      call ipgeti ('output_level_ornl', s % output_level_ornl)
       call ipgeti ('b2mndr_b2fplasma_netcdf',
      & s % b2mndr_b2fplasma_netcdf)
       call ipgeti ('b2scdt_iout', s % b2scdt_iout)
@@ -2156,6 +2159,13 @@ c check the bounds of the switches themselves
       integer, intent(in) :: ns, nspecies
       type(switches), intent(in out) :: s
       external xerrab, xertst
+
+c ORNL_ONLY: global verbosity for optional information and debug output.
+c Zero is minimum output and 10 is maximum; gates are monotonic.
+c Warnings and errors must not be gated by this switch.
+      call xertst(s%output_level_ornl.ge.0.and.
+     &  s%output_level_ornl.le.10,
+     &  'output_level_ornl should be between 0 and 10')
 
 c tn_style
 c tn_style = 0: default combined ion-neutral energy equation

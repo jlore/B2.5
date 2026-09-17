@@ -1450,14 +1450,19 @@
         end if
       endif
 
-      write(*,*) "list of boundary faces in one flux tube and type:"
-      do j=1,mpg%nFci
-        write(*,'(4i4)') j, mpg%fcs_wall_ind(j,1),
-     &                      mpg%fcs_wall_ind(j,2), mpg%fcs_wall_type(j)
-        write(*,*) mpg%fcs_wall(mpg%fcs_wall_ind(j,1):
-     &                          mpg%fcs_wall_ind(j,1)+
-     &                          mpg%fcs_wall_ind(j,2)-1)
-      enddo
+* ORNL_ONLY: this exhaustive, per-face topology dump is useful only for
+*     detailed geometry debugging.  Keep production output concise.
+      if (switch%output_level_ornl.ge.10) then
+        write(*,*) "list of boundary faces in one flux tube and type:"
+        do j=1,mpg%nFci
+          write(*,'(4i4)') j, mpg%fcs_wall_ind(j,1),
+     &                        mpg%fcs_wall_ind(j,2),
+     &                        mpg%fcs_wall_type(j)
+          write(*,*) mpg%fcs_wall(mpg%fcs_wall_ind(j,1):
+     &                            mpg%fcs_wall_ind(j,1)+
+     &                            mpg%fcs_wall_ind(j,2)-1)
+        enddo
+      endif
       return
       end subroutine init_geometry
 
