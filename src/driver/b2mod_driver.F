@@ -82,7 +82,7 @@
       use eirmod_parmmod
      * , only : ndx, ndy, nstra, nfl, natm, nmol, nion, npls,
      *          nsrfs, n1st, n2nd, n3rd, nreac,
-     *          eirene_set_parmmod
+     *          ifoff, eirene_set_parmmod
       use eirmod_cinit
      * , only : eirene_init_cinit, fort_lc
       use eirmod_ccoupl
@@ -1601,7 +1601,9 @@ csw 09oct2012
 !$OMP PARALLEL
 #endif
 #endif
-        IUNOUT=6
+! TEMPORARY WG PORT of standard B2.5 commit f8499da56.
+! Remove when that fix is present in this lineage.
+        IUNOUT=6+IFOFF
 #ifdef USE_OPENMP
 #ifndef USE_EXT_OPENMP
 !$OMP END PARALLEL

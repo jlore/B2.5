@@ -310,6 +310,10 @@ cdjm Jan2017 update particle source components for balance
         endif
 c time-dependent treatment                                              !srv 07.07.21 {
       if(switch%b2mndt_style.eq.2) then
+! TEMPORARY WG PORT of standard B2.5 commit 5c8a2c5e0.
+! Remove when that fix is present in this lineage.
+        psnl%te = pl%te
+        psnl%ti = pl%ti
 *  .. calculate time-dependent source
         call b2shdt (nCv, mpg%nCi, ns, dtim,
      &    geo%cvVol, psnl%na, psnl%te, psnl%ti, psnl%tn,

@@ -183,6 +183,9 @@ csw 28feb2011 mpi
       if(rank_mpi .ne. 0) then
 #ifdef B25_EIRENE
         my_pe=rank_mpi
+! TEMPORARY WG PORT of standard B2.5 commit f8499da56.
+! Remove when that fix is present in this lineage.
+        iunout=7+ifoff
         call eirene_find_param(0)
         do
           call mpi_bcast(ltrigger,1,MPI_LOGICAL,0,
