@@ -6065,10 +6065,14 @@ cxpb code segment analog to b2tfhi
               srw%shi0(iCv1,0) = 0.0_R8
               srw%shi0(iCv1,1) = -1.5_R8*geo%fcS(iFc)*geo%Qalfmax*cs
      &         *dv%ni(iCv1,1)
+              ! Apply the same residual-neutral Ti damping used by the
+              ! regular-Qalf sheath branch: K*(Ti_old-Ti_new).
+              srw%shi0(iCv1,1) = srw%shi0(iCv1,1) -
+     &         switch%stab_coeff_sheath_ti*dv%ne(iCv1)*cs*geo%fcS(iFc)
+              srw%shi0(iCv1,0) = srw%shi0(iCv1,0) +
+     &         switch%stab_coeff_sheath_ti*dv%ne(iCv1)*cs*geo%fcS(iFc)*
+     &         pl%ti(iCv1)
               if(switch%mdf_fhi.ne.0) then
-                srw%shi0(iCv1,0) = srw%shi0(iCv1,0) +
-     &            mpg%bcFcOr(mpg%bcCvP(ib,1)+ibc-1)*
-     &           (dv%fhiPSch(iFc,0) + dv%fhiPSch(iFc,1))
                 t0 = 0.0_R8
                 do is = 0, ns-1
                   t0 = t0 + mpg%bcFcOr(mpg%bcCvP(ib,1)+ibc-1)*1.5_R8*
