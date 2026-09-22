@@ -98,7 +98,6 @@
       subroutine restart_ma28_for_us
       implicit none
       lfirst_ilu_us=.true.
-      write(*,*) 'Restarting ma28_for_us'
       return
       end subroutine restart_ma28_for_us
 

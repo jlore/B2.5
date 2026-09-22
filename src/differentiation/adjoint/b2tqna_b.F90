@@ -660,7 +660,8 @@ SUBROUTINE B2TQNA_B(ncv, nfc, nvx, ns, nscx, nscxmax, iscx, ismain, &
       hcib(icv, is) = dfhcb*pl%na(icv, is)
 !      ..compute hvi0
     END DO
-    WRITE(*, '(a,i3,1p,2g14.7)') 'is,min_df0,max_df0 ', is, min_df0_tmp&
+    IF (switch%output_level_ornl >= 8) WRITE(*, '(a,i3,1p,2g14.7)') &
+&     'is,min_df0,max_df0 ', is, min_df0_tmp&
 &   , max_df0_tmp
   END DO
 !   ..compute hci0, hcn0
@@ -3164,7 +3165,8 @@ SUBROUTINE B2TQNA_NODIFF(ncv, nfc, nvx, ns, nscx, nscxmax, iscx, ismain&
       hvi0(icv, 0) = 0.0_R8
       hvi0(icv, 1) = 0.0_R8
     END DO
-    WRITE(*, '(a,i3,1p,2g14.7)') 'is,min_df0,max_df0 ', is, min_df0_tmp&
+    IF (switch%output_level_ornl >= 8) WRITE(*, '(a,i3,1p,2g14.7)') &
+&     'is,min_df0,max_df0 ', is, min_df0_tmp&
 &   , max_df0_tmp
   END DO
 !   ..compute hci0, hcn0
@@ -3887,4 +3889,3 @@ SUBROUTINE SET_TRANSPORT_KEPS_NODIFF(ncv, nfc, nvx, ns, ismain, switch, &
   RETURN
 !
 END SUBROUTINE SET_TRANSPORT_KEPS_NODIFF
-

@@ -234,7 +234,8 @@
       enddo
 
 *   ..solve the correction equation
-      write(*,'(a,a)') 'Calling b2uxus from ', name
+      if (switch%output_level_ornl.ge.8)
+     &  write(*,'(a,a)') 'Calling b2uxus from ', name
 c Growth guard on momentum: uses the same V*Hz mass factor as
 c the momentum source; both signs of the acceleration are damped
       if (switch%growth_guard.eq.1) then

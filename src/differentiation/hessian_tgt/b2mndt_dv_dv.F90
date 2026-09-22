@@ -691,21 +691,6 @@ SUBROUTINE B2MNDT_DV_DV(nout, ncv, nfc, nvx, ns, ismain, ismain0, nscx, &
       CALL B2SPCX_NODIFF_NODIFF(ncv, ns, ev, am(iscx(k)), st%pl%ti, st%&
 &                         dv%ne, st%rt%rlcx(1:ncv, 0:1, 0:ns-1, k))
     END DO
-!tmp.dpc
-    IF (nscx .GE. 1) THEN
-      WRITE(*, *) 'DPC: b2mndt: rlcx'
-      DO k=0,nscx-1
-        DO is=0,ns-1
-          result10 = damax(ncv, st%rt%rlcx(1, 0, is, k), 1)
-          result20 = damax(ncv, st%rt%rlcx(1, 1, is, k), 1)
-          WRITE(*, '(a,2i4,1p,2g14.7)') 'is0,is,rlcx_0,rlcx_1 ', k, is, &
-&         result10, result20
-        END DO
-      END DO
-    ELSE
-      WRITE(*, *) 'DPC: b2mndt: no CX reactions'
-    END IF
-!tmp.dpc
 !    ..intermediate iteration
     istg(1) = 0
  2  IF (istg(1) .LT. switch%nstg(1) .AND. (.NOT.quit_residual)) THEN
@@ -1565,21 +1550,6 @@ SUBROUTINE B2MNDT_DV_NODIFF(nout, ncv, nfc, nvx, ns, ismain, ismain0, &
       CALL B2SPCX_NODIFF_NODIFF(ncv, ns, ev, am(iscx(k)), st%pl%ti, st%&
 &                         dv%ne, st%rt%rlcx(1:ncv, 0:1, 0:ns-1, k))
     END DO
-!tmp.dpc
-    IF (nscx .GE. 1) THEN
-      WRITE(*, *) 'DPC: b2mndt: rlcx'
-      DO k=0,nscx-1
-        DO is=0,ns-1
-          result10 = damax(ncv, st%rt%rlcx(1, 0, is, k), 1)
-          result20 = damax(ncv, st%rt%rlcx(1, 1, is, k), 1)
-          WRITE(*, '(a,2i4,1p,2g14.7)') 'is0,is,rlcx_0,rlcx_1 ', k, is, &
-&         result10, result20
-        END DO
-      END DO
-    ELSE
-      WRITE(*, *) 'DPC: b2mndt: no CX reactions'
-    END IF
-!tmp.dpc
 !    ..intermediate iteration
     istg(1) = 0
  2  IF (istg(1) .LT. switch%nstg(1) .AND. (.NOT.quit_residual)) THEN
@@ -3468,21 +3438,6 @@ SUBROUTINE B2MNDT_DV0_DV(nout, ncv, nfc, nvx, ns, ismain, ismain0, nscx&
 &                 ncv, 0:1, 0:ns-1, k), stdd%rt%rlcx(:, :, 1:ncv, 0:1, 0&
 &                 :ns-1, k), nbdirs, nbdirs0)
     END DO
-!tmp.dpc
-    IF (nscx .GE. 1) THEN
-      WRITE(*, *) 'DPC: b2mndt: rlcx'
-      DO k=0,nscx-1
-        DO is=0,ns-1
-          result10 = damax(ncv, st%rt%rlcx(1, 0, is, k), 1)
-          result20 = damax(ncv, st%rt%rlcx(1, 1, is, k), 1)
-          WRITE(*, '(a,2i4,1p,2g14.7)') 'is0,is,rlcx_0,rlcx_1 ', k, is, &
-&         result10, result20
-        END DO
-      END DO
-    ELSE
-      WRITE(*, *) 'DPC: b2mndt: no CX reactions'
-    END IF
-!tmp.dpc
 !    ..intermediate iteration
     istg(1) = 0
  2  IF (istg(1) .LT. switch%nstg(1) .AND. (.NOT.quit_residual)) THEN
@@ -4864,21 +4819,6 @@ SUBROUTINE B2MNDT_DV0_NODIFF(nout, ncv, nfc, nvx, ns, ismain, ismain0, &
 &                     ns-1, k), std%rt%rlcx(:, 1:ncv, 0:1, 0:ns-1, k), &
 &                     nbdirs)
     END DO
-!tmp.dpc
-    IF (nscx .GE. 1) THEN
-      WRITE(*, *) 'DPC: b2mndt: rlcx'
-      DO k=0,nscx-1
-        DO is=0,ns-1
-          result10 = damax(ncv, st%rt%rlcx(1, 0, is, k), 1)
-          result20 = damax(ncv, st%rt%rlcx(1, 1, is, k), 1)
-          WRITE(*, '(a,2i4,1p,2g14.7)') 'is0,is,rlcx_0,rlcx_1 ', k, is, &
-&         result10, result20
-        END DO
-      END DO
-    ELSE
-      WRITE(*, *) 'DPC: b2mndt: no CX reactions'
-    END IF
-!tmp.dpc
 !    ..intermediate iteration
     istg(1) = 0
  2  IF (istg(1) .LT. switch%nstg(1) .AND. (.NOT.quit_residual)) THEN
@@ -5632,21 +5572,6 @@ SUBROUTINE B2MNDT_NODIFF_NODIFF(nout, ncv, nfc, nvx, ns, ismain, ismain0&
       CALL B2SPCX_NODIFF_NODIFF(ncv, ns, ev, am(iscx(k)), st%pl%ti, st%&
 &                         dv%ne, st%rt%rlcx(1:ncv, 0:1, 0:ns-1, k))
     END DO
-!tmp.dpc
-    IF (nscx .GE. 1) THEN
-      WRITE(*, *) 'DPC: b2mndt: rlcx'
-      DO k=0,nscx-1
-        DO is=0,ns-1
-          result10 = damax(ncv, st%rt%rlcx(1, 0, is, k), 1)
-          result20 = damax(ncv, st%rt%rlcx(1, 1, is, k), 1)
-          WRITE(*, '(a,2i4,1p,2g14.7)') 'is0,is,rlcx_0,rlcx_1 ', k, is, &
-&         result10, result20
-        END DO
-      END DO
-    ELSE
-      WRITE(*, *) 'DPC: b2mndt: no CX reactions'
-    END IF
-!tmp.dpc
 !    ..intermediate iteration
     istg(1) = 0
  2  IF (istg(1) .LT. switch%nstg(1) .AND. (.NOT.quit_residual)) THEN
@@ -5976,4 +5901,3 @@ SUBROUTINE B2MNDT_NODIFF_NODIFF(nout, ncv, nfc, nvx, ns, ismain, ismain0&
 !
   END IF
 END SUBROUTINE B2MNDT_NODIFF_NODIFF
-

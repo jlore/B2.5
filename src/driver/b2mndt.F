@@ -295,20 +295,6 @@ c therefore initialise here
          call b2spcx (nCv, ns, ev, am(iscx(k)), st%pl%ti, st%dv%ne,
      &     st%rt%rlcx(1:nCv,0:1,0:ns-1,k))
         enddo
-ctmp.dpc
-        if (nscx.ge.1) then
-         write(*,*) 'DPC: b2mndt: rlcx'
-         do k = 0, nscx-1
-           do is=0, ns-1
-             write(*,'(a,2i4,1p,2g14.7)') 'is0,is,rlcx_0,rlcx_1 ',
-     1            k,is,damax(nCv,st%rt%rlcx(1,0,is,k),1),
-     2                 damax(nCv,st%rt%rlcx(1,1,is,k),1)
-           enddo
-         enddo
-        else
-         write(*,*) 'DPC: b2mndt: no CX reactions'
-        endif
-ctmp.dpc
 *    ..intermediate iteration
         istg(1) = 0
     2   if (istg(1).lt.switch%nstg(1) .and. .not.quit_residual) then

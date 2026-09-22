@@ -5721,7 +5721,8 @@ CONTAINS
 ! eliminated, otherwise Tapenade does not recognize it as a real fixed-point loop.
     DO WHILE (res_max .GE. res_quit .AND. itim .LT. ntim .AND. (.NOT.&
 &             quit))
-      WRITE(*, '(1x,a,i9,1p,g14.7,i9,i3,1x,l1)') &
+      IF (switch%output_level_ornl >= 8) WRITE(*, &
+      & '(1x,a,i9,1p,g14.7,i9,i3,1x,l1)') &
 &     'b2mndr_00:itim,dtim,ntim,stack_ptr', itim, dtim, ntim, stack_ptr&
 &     , quit
 !
@@ -5748,7 +5749,8 @@ CONTAINS
 !
 !    ..perform one time step
       ok = .false.
-      WRITE(*, '(1x,a,i9,1p,g14.7,i9,i3)') &
+      IF (switch%output_level_ornl >= 8) WRITE(*, &
+      & '(1x,a,i9,1p,g14.7,i9,i3)') &
 &     'b2mndr_ok:itim,dtim,ntim,stack_ptr', itim, dtim, ntim, stack_ptr
       call set_parameters(switch)
       CALL B2MNDT_NODIFF(nout, ncv, nfc, nvx, ns, ismain, ismain0, state&
@@ -5914,7 +5916,8 @@ CONTAINS
       primal_iterations = itim
 !   ..end loop
     END DO
-    WRITE(*, '(1x,a,i9,1p,g14.7,i9,i3,1x,l1)') &
+    IF (switch%output_level_ornl >= 8) WRITE(*, &
+    & '(1x,a,i9,1p,g14.7,i9,i3,1x,l1)') &
 &   'b2mndr_00:itim,dtim,ntim,stack_ptr', itim, dtim, ntim, stack_ptr, &
 &   quit
 !
@@ -5985,7 +5988,8 @@ CONTAINS
     END IF
 !
 !    ..perform one time step
-    WRITE(*, '(1x,a,i9,1p,g14.7,i9,i3)') &
+    IF (switch%output_level_ornl >= 8) WRITE(*, &
+    & '(1x,a,i9,1p,g14.7,i9,i3)') &
 &   'b2mndr_ok:itim,dtim,ntim,stack_ptr', itim, dtim, ntim, stack_ptr
     CALL PUSHREAL8(mrs, r8/8)
     CALL PUSHBOOLEAN(conv_bcpot11)
@@ -11557,7 +11561,8 @@ CONTAINS
 ! eliminated, otherwise Tapenade does not recognize it as a real fixed-point loop.
     DO WHILE (res_max .GE. res_quit .AND. itim .LT. ntim .AND. (.NOT.&
 &             quit))
-      WRITE(*, '(1x,a,i9,1p,g14.7,i9,i3,1x,l1)') &
+      IF (switch%output_level_ornl >= 8) WRITE(*, &
+      & '(1x,a,i9,1p,g14.7,i9,i3,1x,l1)') &
 &     'b2mndr_00:itim,dtim,ntim,stack_ptr', itim, dtim, ntim, stack_ptr&
 &     , quit
 !
@@ -11584,7 +11589,8 @@ CONTAINS
 !
 !    ..perform one time step
       ok = .false.
-      WRITE(*, '(1x,a,i9,1p,g14.7,i9,i3)') &
+      IF (switch%output_level_ornl >= 8) WRITE(*, &
+      & '(1x,a,i9,1p,g14.7,i9,i3)') &
 &     'b2mndr_ok:itim,dtim,ntim,stack_ptr', itim, dtim, ntim, stack_ptr
       call set_parameters(switch)
       CALL B2MNDT_NODIFF(nout, ncv, nfc, nvx, ns, ismain, ismain0, state&

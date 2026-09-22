@@ -2362,9 +2362,11 @@ cwdk  set some integers
 #else
     1 continue
 #endif
-      write(*,'(1x,a,i9,1p,g14.7,i9,i3,1x,l1)')
-     . 'b2mndr_00:itim,dtim,ntim,stack_ptr',
-     1            itim,dtim,ntim,stack_ptr,quit
+      if (switch%output_level_ornl.ge.8) then
+        write(*,'(1x,a,i9,1p,g14.7,i9,i3,1x,l1)')
+     .   'b2mndr_00:itim,dtim,ntim,stack_ptr',
+     1              itim,dtim,ntim,stack_ptr,quit
+      endif
 
 #ifdef _OPENMP
       cpustart = omp_get_wtime()
@@ -2425,9 +2427,11 @@ csw 09oct2012 set default potential already at this point (BCs)
 #ifndef FIXED_POINT
         do while(.not.ok)
 #endif
-          write(*,'(1x,a,i9,1p,g14.7,i9,i3)')
-     .     'b2mndr_ok:itim,dtim,ntim,stack_ptr',
-     1                itim,dtim,ntim,stack_ptr
+          if (switch%output_level_ornl.ge.8) then
+            write(*,'(1x,a,i9,1p,g14.7,i9,i3)')
+     .       'b2mndr_ok:itim,dtim,ntim,stack_ptr',
+     1                  itim,dtim,ntim,stack_ptr
+          endif
           call b2mndt (nout, nCv, nFc, nVx, ns,
      .      ismain, ismain0, state%rt%nscx, state%rt%nscxmax,
      .      state%rt%iscx, itim, dtim, ntim,

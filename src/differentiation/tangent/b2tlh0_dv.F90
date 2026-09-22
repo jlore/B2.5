@@ -353,7 +353,8 @@ SUBROUTINE B2TLH0_DV(ncv, nfc, nvx, ns, switch, switchd, geo, geod, mpg&
     END IF
   END IF
 !
-  IF (ncall_b2tlh0 .LT. 100) WRITE(*, '(1x,a,1p,2e10.2)') &
+  IF (switch%output_level_ornl >= 8 .AND. ncall_b2tlh0 < 100) &
+&   WRITE(*, '(1x,a,1p,2e10.2)') &
 &                            'b2tlh0: maxfluxlimit = ', maxfluxlimit
 !
   IF (switch%b2tlh0_iout .NE. 0) THEN
@@ -557,7 +558,8 @@ SUBROUTINE B2TLH0_NODIFF(ncv, nfc, nvx, ns, switch, geo, mpg, na, ti, tn&
     END IF
   END IF
 !
-  IF (ncall_b2tlh0 .LT. 100) WRITE(*, '(1x,a,1p,2e10.2)') &
+  IF (switch%output_level_ornl >= 8 .AND. ncall_b2tlh0 < 100) &
+&   WRITE(*, '(1x,a,1p,2e10.2)') &
 &                            'b2tlh0: maxfluxlimit = ', maxfluxlimit
 !
   IF (switch%b2tlh0_iout .NE. 0) THEN
@@ -584,4 +586,3 @@ SUBROUTINE B2TLH0_NODIFF(ncv, nfc, nvx, ns, switch, geo, mpg, na, ti, tn&
   RETURN
 !     ------------------------------------------------------------------
 END SUBROUTINE B2TLH0_NODIFF
-

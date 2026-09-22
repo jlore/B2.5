@@ -138,7 +138,8 @@ cwdk    or radial contributions, since neutral transport is isotropic
        endif
       endif
 
-      if (ncall_b2tlh0.lt.100) write(*,'(1x,a,1p,2e10.2)')
+      if (switch%output_level_ornl.ge.8.and.ncall_b2tlh0.lt.100)
+     &  write(*,'(1x,a,1p,2e10.2)')
      .  'b2tlh0: maxfluxlimit = ',maxfluxlimit
 
       if (switch%b2tlh0_iout.ne.0) then

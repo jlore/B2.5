@@ -397,8 +397,9 @@ cxpb Corrected for dimensionality
           hvi0(iCv,0) = 0.0_R8
           hvi0(iCv,1) = 0.0_R8
         enddo
-        write(*,'(a,i3,1p,2g14.7)') 'is,min_df0,max_df0 ',
-     .   is, min_df0_tmp, max_df0_tmp
+        if (switch%output_level_ornl.ge.8)
+     &    write(*,'(a,i3,1p,2g14.7)') 'is,min_df0,max_df0 ',
+     .      is, min_df0_tmp, max_df0_tmp
       enddo
 *   ..compute hci0, hcn0
       do is = 0, ns-1

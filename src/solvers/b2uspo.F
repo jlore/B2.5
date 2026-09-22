@@ -189,7 +189,8 @@
       enddo
 
 *   ..solve the correction equation
-      write(*,'(1x,a,a)') 'Calling b2uxus from '//trim(name)
+      if (switch%output_level_ornl.ge.8)
+     &  write(*,'(1x,a,a)') 'Calling b2uxus from '//trim(name)
       call b2uxus (nCv, mpg, aa, itcnt, respo, corpo, name,           !srv 18.03.10
      .             switch%b2uxus_style)
 

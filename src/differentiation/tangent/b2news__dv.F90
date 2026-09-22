@@ -1181,9 +1181,7 @@ SUBROUTINE B2NEWS__DV(ncv, nfc, nvx, ns, nscx, iscx, nscxmax, ismain, &
   END IF
 !sw 26oct2011 recalculate rescaling factors sclrtio/sclalph (SOLPS4)
   IF (no_neutr_scl .EQ. 0) THEN
-    WRITE(*, *) 'Calling b2stbr_neutr_scl'
     CALL B2STBR_NEUTR_SCL_NODIFF(ncv, nfc, ns, mpg, geo, st, switch)
-    WRITE(*, *) 'Called b2stbr_neutr_scl'
   END IF
 !
 ! ..return
@@ -2782,9 +2780,7 @@ SUBROUTINE B2NEWS__DV0(ncv, nfc, nvx, ns, nscx, iscx, nscxmax, ismain, &
   END IF
 !sw 26oct2011 recalculate rescaling factors sclrtio/sclalph (SOLPS4)
   IF (no_neutr_scl .EQ. 0) THEN
-    WRITE(*, *) 'Calling b2stbr_neutr_scl'
     CALL B2STBR_NEUTR_SCL_NODIFF(ncv, nfc, ns, mpg, geo, st, switch)
-    WRITE(*, *) 'Called b2stbr_neutr_scl'
   END IF
 !
 ! ..return
@@ -3757,9 +3753,7 @@ SUBROUTINE B2NEWS__NODIFF(ncv, nfc, nvx, ns, nscx, iscx, nscxmax, ismain&
   END IF
 !sw 26oct2011 recalculate rescaling factors sclrtio/sclalph (SOLPS4)
   IF (no_neutr_scl .EQ. 0) THEN
-    WRITE(*, *) 'Calling b2stbr_neutr_scl'
     CALL B2STBR_NEUTR_SCL_NODIFF(ncv, nfc, ns, mpg, geo, st, switch)
-    WRITE(*, *) 'Called b2stbr_neutr_scl'
   END IF
 !
 ! ..return

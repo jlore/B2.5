@@ -1380,10 +1380,8 @@ SUBROUTINE B2NEWS_M_DV_DV(ncv, nfc, nvx, ns, nscx, iscx, nscxmax, ismain&
   END IF
 !sw 26oct2011 recalculate rescaling factors sclrtio/sclalph (SOLPS4)
   IF (no_neutr_scl .EQ. 0) THEN
-    WRITE(*, *) 'Calling b2stbr_neutr_scl'
     CALL B2STBR_NEUTR_SCL_NODIFF_NODIFF(ncv, nfc, ns, mpg, geo, st, &
 &                                 switch)
-    WRITE(*, *) 'Called b2stbr_neutr_scl'
   END IF
 !
 ! ..return
@@ -2549,10 +2547,8 @@ SUBROUTINE B2NEWS_M_DV_NODIFF(ncv, nfc, nvx, ns, nscx, iscx, nscxmax, &
   END IF
 !sw 26oct2011 recalculate rescaling factors sclrtio/sclalph (SOLPS4)
   IF (no_neutr_scl .EQ. 0) THEN
-    WRITE(*, *) 'Calling b2stbr_neutr_scl'
     CALL B2STBR_NEUTR_SCL_NODIFF_NODIFF(ncv, nfc, ns, mpg, geo, st, &
 &                                 switch)
-    WRITE(*, *) 'Called b2stbr_neutr_scl'
   END IF
 !
 ! ..return
@@ -5342,10 +5338,8 @@ SUBROUTINE B2NEWS_M_DV0_DV(ncv, nfc, nvx, ns, nscx, iscx, nscxmax, &
   END IF
 !sw 26oct2011 recalculate rescaling factors sclrtio/sclalph (SOLPS4)
   IF (no_neutr_scl .EQ. 0) THEN
-    WRITE(*, *) 'Calling b2stbr_neutr_scl'
     CALL B2STBR_NEUTR_SCL_NODIFF_NODIFF(ncv, nfc, ns, mpg, geo, st, &
 &                                 switch)
-    WRITE(*, *) 'Called b2stbr_neutr_scl'
   END IF
 !
 ! ..return
@@ -6907,10 +6901,8 @@ SUBROUTINE B2NEWS_M_DV0_NODIFF(ncv, nfc, nvx, ns, nscx, iscx, nscxmax, &
   END IF
 !sw 26oct2011 recalculate rescaling factors sclrtio/sclalph (SOLPS4)
   IF (no_neutr_scl .EQ. 0) THEN
-    WRITE(*, *) 'Calling b2stbr_neutr_scl'
     CALL B2STBR_NEUTR_SCL_NODIFF_NODIFF(ncv, nfc, ns, mpg, geo, st, &
 &                                 switch)
-    WRITE(*, *) 'Called b2stbr_neutr_scl'
   END IF
 !
 ! ..return
@@ -7855,10 +7847,8 @@ SUBROUTINE B2NEWS_M_NODIFF_NODIFF(ncv, nfc, nvx, ns, nscx, iscx, nscxmax&
   END IF
 !sw 26oct2011 recalculate rescaling factors sclrtio/sclalph (SOLPS4)
   IF (no_neutr_scl .EQ. 0) THEN
-    WRITE(*, *) 'Calling b2stbr_neutr_scl'
     CALL B2STBR_NEUTR_SCL_NODIFF_NODIFF(ncv, nfc, ns, mpg, geo, st, &
 &                                 switch)
-    WRITE(*, *) 'Called b2stbr_neutr_scl'
   END IF
 !
 ! ..return

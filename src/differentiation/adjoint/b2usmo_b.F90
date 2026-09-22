@@ -800,7 +800,7 @@ SUBROUTINE B2USMO_NODIFF(ncv, nfc, nvx, switch, geo, mpg, nregionv, &
   END DO
 !
 !   ..solve the correction equation
-  WRITE(*, '(a,a)') 'Calling b2uxus from ', name
+  IF (switch%output_level_ornl >= 8) WRITE(*, '(a,a)') 'Calling b2uxus from ', name
 !srv 18.03.10
   CALL B2UXUS(ncv, mpg, aa, itcnt, resmb, corub, name, switch%&
 &              b2uxus_style)
@@ -860,4 +860,3 @@ SUBROUTINE B2USMO_NODIFF(ncv, nfc, nvx, switch, geo, mpg, nregionv, &
 !.end b2usmo
 !
 END SUBROUTINE B2USMO_NODIFF
-
