@@ -3413,6 +3413,14 @@
 				</description>
 			</switch>
 			<switch>
+				<name>diffusion_bc_safeguard</name>
+				<default>1</default>
+				<type>integer</type>
+				<description>
+					Controls the negative-incident-flux safeguard used by the diffusion approximation for AFN boundary conditions. When set to 1, direct MAXW=0 evaluation falls back to the truncated drifting Maxwellian result if the diffusion approximation gives a negative incident particle flux. When set to 0, the diffusion result is retained. MAXW=2 always enables the safeguard for its diffusion evaluation.
+				</description>
+			</switch>
+			<switch>
 				<name>b2tqna_afn_vnn</name>
 				<default>1</default>
 				<type>integer</type>
@@ -6618,7 +6626,7 @@
 				<default>1</default>
 				<type>integer array of length (NSTRAT)</type>
 				<description>
-					Determines the approximation of the particle-velocity distribution of the incident atoms for the AFN boundary condition. MAXW=0: a diffusion approach is used; MAXW=1: a truncated drifting Maxwellian is used. For some cases, MAXW=0 slightly reduces the discrepancy between the fluid and kinetic solution due to an intrinsic correction for lower collisionality. The diffusion and Maxwellian approach are combined when using MAXW=2, for which the Maxwellian approach is used when the local Knudsen number (Kn) is smaller than b2stbr_kn_b1, the diffusion approach is used for Kn &gt; b2stbr_kn_b2 and a linear interpolation between the two approaches for b2stbr_kn_b1 &lt; Kn &lt; b2stbr_kn_b2. The macroscopic length scale to determine the local Knudsen number is defined by the parameter l_macro_afn.
+					Determines the approximation of the particle-velocity distribution of the incident atoms for the AFN boundary condition. MAXW=0 uses the diffusion approach; MAXW=1 uses a truncated drifting Maxwellian. For some cases, MAXW=0 slightly reduces the discrepancy between the fluid and kinetic solution due to an intrinsic correction for lower collisionality. MAXW=2 combines the two approaches: the diffusion approach is used when the local Knudsen number (Kn) is smaller than b2stbr_kn_b1, the Maxwellian approach is used for Kn &gt; b2stbr_kn_b2, and a linear interpolation is used for b2stbr_kn_b1 &lt; Kn &lt; b2stbr_kn_b2. The macroscopic length scale used to determine Kn is l_macro_afn. The MAXW=2 diffusion evaluation always enables its negative-incident-flux safeguard. Direct MAXW=0 uses diffusion_bc_safeguard (default 1), which falls back to the Maxwellian result when the diffusion approximation gives a negative incident particle flux.
 				</description>
 			</switch>
 			<switch>

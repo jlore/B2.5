@@ -833,7 +833,7 @@ cwdk remove this if-test, to allow runs without Eirene if code is compiled with 
      4 st%srw%shi0(:,3)*st%dv%ni(:,0)*st%pl%ti(:)
       st%srw%b2stbr_shn(:)=
      1 st%srw%shn0(:,0)+
-     2 st%srw%shn0(:,1)*st%pl%ti(:)+
+     2 st%srw%shn0(:,1)*st%pl%tn(:)+
      3 st%srw%shn0(:,2)*st%dv%nn(:)+
      4 st%srw%shn0(:,3)*st%dv%nn(:)*st%pl%tn(:)
       st%srw%b2stbr_sch(:)=
