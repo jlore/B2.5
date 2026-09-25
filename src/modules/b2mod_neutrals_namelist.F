@@ -1453,12 +1453,19 @@ cwvu    for (advanced) spatially hybrid, might need even more.
         call alloc_mapping_rc (m)
         m%rcFcP = 0
 
+! ORNL_ONLY: create the face-mapping debug file only at maximum verbosity.
+        idb = -1
+        call ipgeti ('output_level_ornl', idb)
+        if (idb.ge.10) then
 #ifndef LEGACYCOMP
-        open (newunit=idb,file='debug_neutrals.out')
+          open (newunit=idb,file='debug_neutrals.out')
 #else
-        idb = newunit()
-        open (unit=idb,file='debug_neutrals.out')
+          idb = newunit()
+          open (unit=idb,file='debug_neutrals.out')
 #endif
+        else
+          idb = -1
+        endif
         instra = 0
         do istra = 1, nstrai
           if (crcstra(istra) == 'A') then
@@ -1480,7 +1487,7 @@ cwvu    for (advanced) spatially hybrid, might need even more.
             call xerrab ('CRCSTRA /= ACTV ')
           endif
         end do
-        close(idb)
+        if (idb.ne.-1) close(idb)
       end if
 
       ! now check that all boundary faces are assigned to a stratum

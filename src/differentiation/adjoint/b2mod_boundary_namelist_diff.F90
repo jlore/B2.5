@@ -916,7 +916,13 @@ CONTAINS
       CALL ALLOC_MAPPING_BC_B(m, mb)
       m%bcfcp = 0
 !
-      OPEN(newunit=idb, file='debug_bound.out') 
+      idb = -1
+      CALL IPGETI('output_level_ornl', idb)
+      IF (idb .GE. 10) THEN
+        OPEN(newunit=idb, file='debug_bound.out')
+      ELSE
+        idb = -1
+      END IF
       inbc = 0
       DO ib=1,nbc
         IF (bcchar(ib) .EQ. 'A') THEN
@@ -938,7 +944,7 @@ CONTAINS
           CALL XERRAB('BCCHAR /= A')
         END IF
       END DO
-      CLOSE(idb) 
+      IF (idb .NE. -1) CLOSE(idb)
     END IF
 !      call bc_to_struct (m)
 !
@@ -1109,7 +1115,13 @@ CONTAINS
       CALL ALLOC_MAPPING_BC(m)
       m%bcfcp = 0
 !
-      OPEN(newunit=idb, file='debug_bound.out') 
+      idb = -1
+      CALL IPGETI('output_level_ornl', idb)
+      IF (idb .GE. 10) THEN
+        OPEN(newunit=idb, file='debug_bound.out')
+      ELSE
+        idb = -1
+      END IF
       inbc = 0
       DO ib=1,nbc
         IF (bcchar(ib) .EQ. 'A') THEN
@@ -1131,7 +1143,7 @@ CONTAINS
           CALL XERRAB('BCCHAR /= A')
         END IF
       END DO
-      CLOSE(idb) 
+      IF (idb .NE. -1) CLOSE(idb)
     END IF
 !      call bc_to_struct (m)
 !

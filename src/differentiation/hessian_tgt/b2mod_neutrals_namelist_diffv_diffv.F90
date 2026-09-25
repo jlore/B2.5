@@ -1204,7 +1204,13 @@ CONTAINS
       CALL ALLOC_MAPPING_RC_DV(m, md0, nbdirs)
       m%rcfcp = 0
 !
-      OPEN(newunit=idb, file='debug_neutrals.out') 
+      idb = -1
+      CALL IPGETI('output_level_ornl', idb)
+      IF (idb .GE. 10) THEN
+        OPEN(newunit=idb, file='debug_neutrals.out')
+      ELSE
+        idb = -1
+      END IF
       instra = 0
       DO istra=1,nstrai
         IF (crcstra(istra) .EQ. 'A') THEN
@@ -1227,7 +1233,7 @@ CONTAINS
           CALL XERRAB('CRCSTRA /= ACTV ')
         END IF
       END DO
-      CLOSE(idb) 
+      IF (idb .NE. -1) CLOSE(idb)
     END IF
 !
     CALL CHECK_BOUNDARY_LABELS_NODIFF_NODIFF(m, nstrai, rcstart(1:nstrai&
@@ -1632,7 +1638,13 @@ CONTAINS
       CALL ALLOC_MAPPING_RC_DV(m, md0, nbdirs)
       m%rcfcp = 0
 !
-      OPEN(newunit=idb, file='debug_neutrals.out') 
+      idb = -1
+      CALL IPGETI('output_level_ornl', idb)
+      IF (idb .GE. 10) THEN
+        OPEN(newunit=idb, file='debug_neutrals.out')
+      ELSE
+        idb = -1
+      END IF
       instra = 0
       DO istra=1,nstrai
         IF (crcstra(istra) .EQ. 'A') THEN
@@ -1655,7 +1667,7 @@ CONTAINS
           CALL XERRAB('CRCSTRA /= ACTV ')
         END IF
       END DO
-      CLOSE(idb) 
+      IF (idb .NE. -1) CLOSE(idb)
     END IF
 !
     CALL CHECK_BOUNDARY_LABELS_NODIFF_NODIFF(m, nstrai, rcstart(1:nstrai&
@@ -2044,7 +2056,13 @@ CONTAINS
       CALL ALLOC_MAPPING_RC(m)
       m%rcfcp = 0
 !
-      OPEN(newunit=idb, file='debug_neutrals.out') 
+      idb = -1
+      CALL IPGETI('output_level_ornl', idb)
+      IF (idb .GE. 10) THEN
+        OPEN(newunit=idb, file='debug_neutrals.out')
+      ELSE
+        idb = -1
+      END IF
       instra = 0
       DO istra=1,nstrai
         IF (crcstra(istra) .EQ. 'A') THEN
@@ -2067,7 +2085,7 @@ CONTAINS
           CALL XERRAB('CRCSTRA /= ACTV ')
         END IF
       END DO
-      CLOSE(idb) 
+      IF (idb .NE. -1) CLOSE(idb)
     END IF
 !
     CALL CHECK_BOUNDARY_LABELS_NODIFF_NODIFF(m, nstrai, rcstart(1:nstrai&

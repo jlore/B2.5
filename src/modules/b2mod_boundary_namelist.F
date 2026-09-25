@@ -1002,12 +1002,19 @@ c.. Test consistency with region boundaries
         call alloc_mapping_bc (m)
         m%bcFcP = 0
 
+! ORNL_ONLY: create the face-mapping debug file only at maximum verbosity.
+        idb = -1
+        call ipgeti ('output_level_ornl', idb)
+        if (idb.ge.10) then
 #ifndef LEGACYCOMP
-        open (newunit=idb,file='debug_bound.out')
+          open (newunit=idb,file='debug_bound.out')
 #else
-        idb=newunit()
-        open (unit=idb,file='debug_bound.out')
+          idb=newunit()
+          open (unit=idb,file='debug_bound.out')
 #endif
+        else
+          idb = -1
+        endif
         inbc = 0
         do ib = 1, nbc
           if (bcchar(ib) == 'A') then
@@ -1028,7 +1035,7 @@ c.. Test consistency with region boundaries
             call xerrab ('BCCHAR /= A')
           endif
         end do
-        close(idb)
+        if (idb.ne.-1) close(idb)
       end if
 !      call bc_to_struct (m)
 
