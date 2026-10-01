@@ -647,11 +647,11 @@
       call cfruin (iun, mpg%nCv, mpg%cvLbl, 'cvLbl')
       call cfruin (iun, mpg%nFt, mpg%ftLbl, 'ftLbl')
 
-      if (b2fgmtry_version.ge.'03.002.002'.and.
-     &    mpg%hasTopologicalData) then
+      if (mpg%hasTopologicalData) then
         read(iun, *) idcod, id
-        if (.not.(streql('*cf:',idcod).and.streql('Vx',id))) then
-          call xerrab('read_mapping: expected Xpt topology')
+        if (.not.(streql('*cf:',idcod).and.
+     &      (streql('Xpt',id).or.streql('Vx',id)))) then
+          call xerrab('read_mapping: expected Xpt record')
         endif
         do i = 1, mpg%nXpt
           read(iun, *) mpg%Xpt(i), mpg%isPrimaryXpt(i),
@@ -659,16 +659,18 @@
         enddo
 
         read(iun, *) idcod, id
-        if (.not.(streql('*cf:',idcod).and.streql('Vx',id))) then
-          call xerrab('read_mapping: expected O-point topology')
+        if (.not.(streql('*cf:',idcod).and.
+     &      (streql('Opt',id).or.streql('Vx',id)))) then
+          call xerrab('read_mapping: expected Opt record')
         endif
         do i = 1, mpg%nOpt
           read(iun, *) mpg%Opt(i)
         enddo
 
         read(iun, *) idcod, id
-        if (.not.(streql('*cf:',idcod).and.streql('Vx',id))) then
-          call xerrab('read_mapping: expected strike topology')
+        if (.not.(streql('*cf:',idcod).and.
+     &      (streql('strVx',id).or.streql('Vx',id)))) then
+          call xerrab('read_mapping: expected strVx record')
         endif
         do i = 1, mpg%nStr
           read(iun, *) mpg%strVx(i), mpg%strXpt(i),
@@ -676,8 +678,9 @@
         enddo
 
         read(iun, *) idcod, id
-        if (.not.(streql('*cf:',idcod).and.streql('Vx',id))) then
-          call xerrab('read_mapping: expected tangency topology')
+        if (.not.(streql('*cf:',idcod).and.
+     &      (streql('tgVx',id).or.streql('Vx',id)))) then
+          call xerrab('read_mapping: expected tgVx record')
         endif
         do i = 1, mpg%nTgc
           read(iun, *) mpg%tgVx(i), mpg%tgDiv(i),
@@ -685,9 +688,10 @@
         enddo
 
         read(iun, *) idcod, id
-        if (.not.(streql('*cf:',idcod).and.streql('divFcP1',id)))
-     &    then
-          call xerrab('read_mapping: expected divertor topology')
+        if (.not.(streql('*cf:',idcod).and.
+     &      (streql('divFcPstart',id).or.
+     &       streql('divFcP1',id)))) then
+          call xerrab('read_mapping: expected divFcPstart record')
         endif
         do i = 1, mpg%nDiv
           read(iun, *) mpg%divFcP(i,1), mpg%divFcP(i,2)
@@ -761,30 +765,30 @@
       call cfwuin (nout, mpg%nFt, mpg%ftLbl, 'ftLbl')
 
       if (mpg%hasTopologicalData) then
-        write(nout, *) '*cf:    Vx isPrimary fsID'
+        write(nout, *) '*cf:    Xpt isPrimary fsID'
         do i = 1, mpg%nXpt
           write(nout, *) mpg%Xpt(i), mpg%isPrimaryXpt(i),
      &      mpg%XptFsID(i)
         enddo
 
-        write(nout, *) '*cf:    Vx'
+        write(nout, *) '*cf:    Opt'
         do i = 1, mpg%nOpt
           write(nout, *) mpg%Opt(i)
         enddo
 
-        write(nout, *) '*cf:    Vx Xpt divID fsID'
+        write(nout, *) '*cf:    strVx Xpt divID fsID'
         do i = 1, mpg%nStr
           write(nout, *) mpg%strVx(i), mpg%strXpt(i),
      &      mpg%strDiv(i), mpg%strFsID(i)
         enddo
 
-        write(nout, *) '*cf:    Vx divID fsID'
+        write(nout, *) '*cf:    tgVx divID fsID'
         do i = 1, mpg%nTgc
           write(nout, *) mpg%tgVx(i), mpg%tgDiv(i),
      &      mpg%tgFsID(i)
         enddo
 
-        write(nout, *) '*cf:    divFcP1 divFcP2'
+        write(nout, *) '*cf:    divFcPstart divFcPcount'
         do i = 1, mpg%nDiv
           write(nout, *) mpg%divFcP(i,1), mpg%divFcP(i,2)
         enddo

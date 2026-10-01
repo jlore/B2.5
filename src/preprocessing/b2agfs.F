@@ -397,8 +397,8 @@
                 g%fcBb(:,3) = sqrt( cvBp(1)**2 + cvBt(1)**2)
             endif
            else
-             call xerrab('Grid version not greater than or equal to' //
-     &         '03.002.00')
+             call xerrab('b2agfs: old b2fgmtry format; run b2us ' //
+     &         'first')
            endif  ! if of the grid_version
 
         else
@@ -429,6 +429,7 @@
       use b2ag_ghostcells
       use b2us_map
       use b2us_geo
+      use b2us_io, only: read_b2fgmtry_topology_header
       use b2mod_subsys
       implicit none
       !input arguments
@@ -440,7 +441,7 @@
 
       !internal
       character idcod*8, id*32
-      integer :: iCv, iVx, iFc, iv(nnVx), ic(nnCv), if(nnFc),
+      integer :: iCv, iVx, iFc, iDiv, iv(nnVx), ic(nnCv), if(nnFc),
      &   idum(0:5), iFt, iFs, ifcv(nnFt), ifsv(nnFs), n2
       real(kind=R8) :: cvBp(m%nCv), cvBt(m%nCv), cvFpsi(m%nCv)
       logical streql
@@ -483,94 +484,76 @@
           m%nncut = idum(2)
         endif
 
-        ! Read topological data if present
-        if (grid_version >= '03.002.002') then
-          ! Set logical
-          m%hasTopologicalData = .true.
+        ! Read the fixed .002 topology header, or initialize the
+        ! legacy no-metadata state for .000/.001 files.
+        call read_b2fgmtry_topology_header(nrid, grid_version, m)
 
-          ! Read topological mesh flag
-          call cfruin(nrid, 1, idum, 'topoflag')
-          m%topoID = idum(0)
-
-          ! Read number of topological points
-          call cfruin(nrid, 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
-          m%nXpt = idum(0)
-          m%nOpt = idum(1)
-          m%nStr = idum(2)
-          m%nTgc = idum(3)
-          m%nDiv = idum(4)
-          m%nfcDiv = idum(5)
+        if (m%hasTopologicalData) then
 
           ! Read X-point data
           read(nrid,*,err=91) idcod, id
           if (streql('*cf:',idcod).and.streql('Vx',id)) then
             do iVx = 1, m%nXpt
-              ! vx isprimary fsID
+              ! X-point vertex ID, primary flag, flux-surface ID
                 read(nrid,*,err=91) m%Xpt(iVx), m%isPrimaryXpt(iVx),
      &            m%XptFsID(iVx)
               enddo
           else
-            call xerrab('read_traduitoutb2us: expected Xpt ' //
-     &        'topology')
+            call xerrab('read_traduitoutb2us: expected Xpt record')
           endif
 
           ! Read O-point data
           read(nrid,*,err=91) idcod, id
           if (streql('*cf:',idcod).and.streql('Vx',id)) then
             do iVx = 1, m%nOpt
-              ! vx
+              ! O-point vertex ID
                 read(nrid,*,err=91) m%Opt(iVx)
               enddo
           else
-            call xerrab('read_traduitoutb2us: expected O-point ' //
-     &        'topology')
+            call xerrab('read_traduitoutb2us: expected Opt record')
           endif
 
           ! Read strike point data
           read(nrid,*,err=91) idcod, id
           if (streql('*cf:',idcod).and.streql('Vx',id)) then
             do iVx = 1, m%nStr
-              ! vx xpointID divID fsID
+              ! Strike vertex, X-point vertex, target and surface IDs
                 read(nrid,*,err=91) m%StrVx(iVx), m%strXpt(iVx),
      &            m%strDiv(iVx), m%strFsID(iVx)
               enddo
           else
-            call xerrab('read_traduitoutb2us: expected strike ' //
-     &        'topology')
+            call xerrab('read_traduitoutb2us: expected strVx record')
           endif
 
           ! Read tangency point data
           read(nrid,*,err=91) idcod, id
           if (streql('*cf:',idcod).and.streql('Vx',id)) then
             do iVx = 1, m%nTgc
-              ! vx xpointID divID fsID
+              ! Tangency vertex, target ID and flux-surface ID
                 read(nrid,*,err=91) m%TgVx(iVx), m%tgDiv(iVx),
      &            m%tgFsID(iVx)
               enddo
           else
-            call xerrab('read_traduitoutb2us: expected tangency ' //
-     &        'topology')
+            call xerrab('read_traduitoutb2us: expected tgVx record')
           endif
 
           ! Read divertor data
           read(nrid,*,err=91) idcod, id
-          if (streql('*cf:',idcod).and.streql('divFcP1',id)) then
-            do iVx = 1, m%nDiv
-              ! divFcP(:, 1) divFcP(:, 2)
-                read(nrid,*,err=91) m%divFcP(iVx, 1),
-     &            m%divFcP(iVx, 2)
-              enddo
+          if (streql('*cf:',idcod).and.streql('div',id)) then
+            do iDiv = 1, m%nDiv
+              ! Target ID, one-based face-list start, face count
+              read(nrid,*,err=91) idum(0), m%divFcP(iDiv, 1),
+     &          m%divFcP(iDiv, 2)
+              call xertst(idum(0).eq.iDiv,
+     &          'read_traduitoutb2us: unexpected divID order')
+            enddo
           else
             call xerrab('read_traduitoutb2us: expected divertor ' //
-     &        'topology')
+     &        'index and face-pointer record')
           endif
 
           ! Read divertor face data
           call cfruin(nrid, m%nfcDiv, m%divFc, 'divFc')
-        else
-          ! No data available, will be determined later on based on
-          ! standard data/cases
-          m%hasTopologicalData = .false.
         endif
 
         ! read vertex information

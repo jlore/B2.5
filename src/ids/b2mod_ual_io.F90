@@ -121,6 +121,7 @@ module b2mod_ual_io
      &          GEOMETRY_DDN_BOTTOM, GEOMETRY_DDN_TOP,   &
      &          GEOMETRY_LFS_SNOWFLAKE_PLUS,             &
      &          GEOMETRY_LFS_SNOWFLAKE_MINUS,            &
+     &          GEOMETRY_GENERAL,                        &
      &          geometryId, geometryName, regionNumbers, &
      &          boundaryAssignments, regionCounts
 # if ( IMAS_MINOR_VERSION > 11 || IMAS_MAJOR_VERSION > 3 ) && GGD_MAJOR_VERSION > 0
@@ -134,7 +135,8 @@ module b2mod_ual_io
      & , only : b2_IMAS_Transform_Wall_ID_B2_TO_IDS_Face
 #  endif
     use b2mod_ual_io_grid &
-     & , only : b2_IMAS_Fill_Grid_Desc
+     & , only : b2_IMAS_Fill_Grid_Desc, &
+     &          B2_GENERAL_DIVERTOR_TARGET_GSUBSET_BASE
     use ids_grid_subgrid  &     ! IGNORE
      & , only : findGridSubsetByName
     use ids_grid_structured &   ! IGNORE
@@ -411,7 +413,7 @@ contains
     subroutine IDS_init
     implicit none
     integer tvalues(8)
-    integer i, iCv, iFc, ireg
+    integer i, j, iCv, iFc, ireg, nDivertorTargets
     real(IDS_real) :: r_min, r_max, z_min, z_max
     logical, save :: IDS_initialized = .false.
     character*16 usrnam
@@ -462,28 +464,34 @@ contains
       plate_name(3) = 'W2'
       plate_name(4) = 'W3'
     end select
-    if (maxval(mpg%strDiv).gt.0) then
-      allocate(wetted_area( maxval(mpg%strDiv) ) )
-      allocate(extension_r( maxval(mpg%strDiv) ) )
-      allocate(extension_z( maxval(mpg%strDiv) ) )
-      allocate(flux_expansion( maxval(mpg%strDiv) ) )
-    end if
-    do i = 1, maxval(mpg%strDiv)
-      if (gridGeometry.eq.plasmaGeometry .or. i.eq.1) then
-        ireg = i
-      else if (mpg%nnreg(0).eq.8 .and. i.eq.2) then
-        ireg = 4
+    if (gridGeometry.eq.GEOMETRY_GENERAL) then
+      nDivertorTargets = mpg%nDiv
+    else if (allocated(mpg%strDiv)) then
+      if (size(mpg%strDiv).gt.0) then
+        nDivertorTargets = maxval(mpg%strDiv)
       else
-        call xerrab ('Unexpected geometry!')
+        nDivertorTargets = 0
       end if
+    else
+      nDivertorTargets = 0
+    end if
+    if (nDivertorTargets.gt.0) then
+      allocate(wetted_area(nDivertorTargets))
+      allocate(extension_r(nDivertorTargets))
+      allocate(extension_z(nDivertorTargets))
+      allocate(flux_expansion(nDivertorTargets))
+    end if
+    do i = 1, nDivertorTargets
       r_min = huge(1.0_R8)
       r_max = 0.0_R8
       z_min = huge(1.0_R8)
       z_max =-huge(1.0_R8)
       wetted_area(i) = 0.0_IDS_real
-      do iFc = 1, mpg%nFc
-        if (mpg%fcReg(iFc).eq. &
-          & regionNumbers(ireg,REGIONTYPE_EDGE,gridGeometry)) then
+      flux_expansion(i) = 0.0_IDS_real
+      if (gridGeometry.eq.GEOMETRY_GENERAL) then
+        do j = mpg%divFcP(i,1), &
+          & mpg%divFcP(i,1) + mpg%divFcP(i,2) - 1
+          iFc = mpg%divFc(j)
           if (mpg%fcCv(iFc,1).le.mpg%nCi) then
             iCv = mpg%fcCv(iFc,1)
           else
@@ -498,20 +506,56 @@ contains
           z_max = max( z_max, geo%vxY(mpg%fcVx(iFc,1)), &
                &              geo%vxY(mpg%fcVx(iFc,2)) )
           wetted_area(i) = wetted_area(i) + geo%fcS(iFc)
-        end if
-      end do
-      extension_r(i) = r_max - r_min
-      extension_z(i) = z_max - z_min
-      if ( mpg%nnreg(0).eq.8 .and. (i.eq.1 .or. i.eq.2) ) then
-        iFc = ifsepimp
+        end do
       else
-        iFc = ifsepomp
+        if (gridGeometry.eq.plasmaGeometry .or. i.eq.1) then
+          ireg = i
+        else if (mpg%nnreg(0).eq.8 .and. i.eq.2) then
+          ireg = 4
+        else
+          call xerrab ('Unexpected geometry!')
+        end if
+        do iFc = 1, mpg%nFc
+          if (mpg%fcReg(iFc).eq. &
+            & regionNumbers(ireg,REGIONTYPE_EDGE,gridGeometry)) then
+            if (mpg%fcCv(iFc,1).le.mpg%nCi) then
+              iCv = mpg%fcCv(iFc,1)
+            else
+              iCv = mpg%fcCv(iFc,2)
+            end if
+            r_min = min( r_min, geo%vxX(mpg%fcVx(iFc,1)), &
+                 &              geo%vxX(mpg%fcVx(iFc,2)) )
+            r_max = max( r_max, geo%vxX(mpg%fcVx(iFc,1)), &
+                 &              geo%vxX(mpg%fcVx(iFc,2)) )
+            z_min = min( z_min, geo%vxY(mpg%fcVx(iFc,1)), &
+                 &              geo%vxY(mpg%fcVx(iFc,2)) )
+            z_max = max( z_max, geo%vxY(mpg%fcVx(iFc,1)), &
+                 &              geo%vxY(mpg%fcVx(iFc,2)) )
+            wetted_area(i) = wetted_area(i) + geo%fcS(iFc)
+          end if
+        end do
       end if
-      if (mpg%nStr.gt.0) flux_expansion(i) = &
-          & ( geo%fcBb(iFc,0)/geo%fcBb(iFc,3) ) / &
-          & ( geo%vxBb(mpg%ivdiv(i),0)/geo%vxBb(mpg%ivdiv(i),3) )
+      if (gridGeometry.eq.GEOMETRY_GENERAL .and. &
+        & mpg%divFcP(i,2).eq.0) then
+        extension_r(i) = 0.0_IDS_real
+        extension_z(i) = 0.0_IDS_real
+      else
+        extension_r(i) = r_max - r_min
+        extension_z(i) = z_max - z_min
+      end if
+      if (gridGeometry.ne.GEOMETRY_GENERAL) then
+        if ( mpg%nnreg(0).eq.8 .and. (i.eq.1 .or. i.eq.2) ) then
+          iFc = ifsepimp
+        else
+          iFc = ifsepomp
+        end if
+        if (mpg%nStr.gt.0) flux_expansion(i) = &
+            & ( geo%fcBb(iFc,0)/geo%fcBb(iFc,3) ) / &
+            & ( geo%vxBb(mpg%ivdiv(i),0)/geo%vxBb(mpg%ivdiv(i),3) )
+      end if
     end do
-    if (mpg%nStr.eq.0 .and. mpg%nTgc.ge.1 ) flux_expansion(1) = &
+    if (gridGeometry.ne.GEOMETRY_GENERAL .and. &
+      & mpg%nStr.eq.0 .and. mpg%nTgc.ge.1 ) flux_expansion(1) = &
           & ( geo%fcBb(ifsepomp,0)/geo%fcBb(ifsepomp,3) ) / &
           & ( geo%fcBb(mpg%tgVx(1),0)/geo%fcBb(mpg%tgVx(1),3) )
 
@@ -649,6 +693,7 @@ contains
         integer :: isep(2) !< Array of separatrix regions
         integer :: iret   !< Dummy return index
         integer :: ias    !< Starting index for non-standard surface in resolved list
+        integer :: nDivertorTargets !< Number of explicitly represented targets
 # ifdef B25_EIRENE
         integer :: ind    !< Non-standard surface index in resolved list
         integer :: iss    !< State index
@@ -778,6 +823,13 @@ contains
 # endif
 
         call IDS_init
+        if (plasmaGeometry.eq.GEOMETRY_GENERAL) then
+          nDivertorTargets = mpg%nDiv
+        else if (mpg%nStr.gt.0) then
+          nDivertorTargets = maxval(mpg%strDiv)
+        else
+          nDivertorTargets = 0
+        end if
         ns = size( state%pl%na, 2 )
         do is = 0, ns-1
           call b2xppb( mpg%nCv, state%rt%rza(:,is),                  &
@@ -1684,20 +1736,20 @@ contains
 # endif
 
 # if ( IMAS_MINOR_VERSION > 30 || IMAS_MAJOR_VERSION > 3 )
-        if ( mpg%nStr.gt.0 ) then
-          allocate( ion_power( maxval(mpg%strDiv) ) )
-          allocate( electron_power( maxval(mpg%strDiv) ) )
-          allocate( power_incident( maxval(mpg%strDiv) ) )
-          allocate( power_currents( maxval(mpg%strDiv) ) )
-          allocate( power_neutrals( maxval(mpg%strDiv) ) )
-          allocate( power_radiated( maxval(mpg%strDiv) ) )
-          allocate( power_convected( maxval(mpg%strDiv) ) )
-          allocate( power_conducted( maxval(mpg%strDiv) ) )
-          allocate( power_flux_peak( maxval(mpg%strDiv) ) )
-          allocate( power_recombination_plasma( maxval(mpg%strDiv) ) )
-          allocate( power_recombination_neutrals( maxval(mpg%strDiv) ) )
-          allocate( current_incident( maxval(mpg%strDiv) ) )
-          do i = 1, maxval(mpg%strDiv)
+        if (nDivertorTargets.gt.0) then
+          allocate( ion_power(nDivertorTargets) )
+          allocate( electron_power(nDivertorTargets) )
+          allocate( power_incident(nDivertorTargets) )
+          allocate( power_currents(nDivertorTargets) )
+          allocate( power_neutrals(nDivertorTargets) )
+          allocate( power_radiated(nDivertorTargets) )
+          allocate( power_convected(nDivertorTargets) )
+          allocate( power_conducted(nDivertorTargets) )
+          allocate( power_flux_peak(nDivertorTargets) )
+          allocate( power_recombination_plasma(nDivertorTargets) )
+          allocate( power_recombination_neutrals(nDivertorTargets) )
+          allocate( current_incident(nDivertorTargets) )
+          do i = 1, nDivertorTargets
             ion_power(i) = 0.0_IDS_real
             electron_power(i) = 0.0_IDS_real
             power_incident(i) = 0.0_IDS_real
@@ -1795,7 +1847,100 @@ contains
             end do
           end do
         end if
+        if (nDivertorTargets.gt.0) then
         select case ( plasmaGeometry )
+        case ( GEOMETRY_GENERAL )
+          !! A general topology does not imply a standard inner/outer or
+          !! upper/lower grouping. Preserve every declared B2.5 target as one
+          !! generic divertor containing one target.
+          allocate( divertors%divertor(nDivertorTargets) )
+          do i = 1, nDivertorTargets
+            allocate( divertors%divertor(i)%name(1) )
+            allocate( divertors%divertor(i)%target(1) )
+            allocate( divertors%divertor(i)%target(1)%name(1) )
+            divertors%divertor(i)%name = 'B2 divertor '//int2str(i)
+            divertors%divertor(i)%target(1)%name = &
+              & 'B2 divertor target '//int2str(i)
+#  if IMAS_MAJOR_VERSION > 3
+            allocate( divertors%divertor(i)%description(1) )
+            allocate( divertors%divertor(i)%target(1)%description(1) )
+            divertors%divertor(i)%description = &
+              & 'General-topology B2.5 divertor '//int2str(i)
+            divertors%divertor(i)%target(1)%description = &
+              & 'General-topology B2.5 target '//int2str(i)
+#  else
+            allocate( divertors%divertor(i)%identifier(1) )
+            allocate( divertors%divertor(i)%target(1)%identifier(1) )
+            divertors%divertor(i)%identifier = 'B2_DIV_'//int2str(i)
+            divertors%divertor(i)%target(1)%identifier = &
+              & 'B2_TARGET_'//int2str(i)
+#  endif
+            divertors%divertor(i)%target(1)%extension_r = extension_r(i)
+            divertors%divertor(i)%target(1)%extension_z = extension_z(i)
+            call write_timed_value( &
+              & divertors%divertor(i)%target(1)%flux_expansion, &
+              & flux_expansion(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%target(1)%wetted_area, &
+              & wetted_area(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%wetted_area, wetted_area(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%target(1)%power_flux_peak, &
+              & power_flux_peak(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%target(1)%power_incident_fraction, &
+              & 1.0_IDS_real )
+            call write_timed_value( &
+              & divertors%divertor(i)%target(1)%power_incident, &
+              & power_incident(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%power_incident, power_incident(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%target(1)%power_neutrals, &
+              & power_neutrals(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%power_neutrals, power_neutrals(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%target(1)%power_conducted, &
+              & power_conducted(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%power_conducted, power_conducted(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%target(1)%power_convected, &
+              & power_convected(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%power_convected, power_convected(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%target(1)%power_radiated, &
+              & power_radiated(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%power_radiated, power_radiated(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%target(1)%power_recombination_plasma, &
+              & power_recombination_plasma(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%power_recombination_plasma, &
+              & power_recombination_plasma(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%target(1)%power_recombination_neutrals, &
+              & power_recombination_neutrals(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%power_recombination_neutrals, &
+              & power_recombination_neutrals(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%target(1)%power_currents, &
+              & power_currents(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%power_currents, power_currents(i) )
+#  if ( IMAS_MINOR_VERSION > 32 || IMAS_MAJOR_VERSION > 3 )
+            call write_timed_value( &
+              & divertors%divertor(i)%target(1)%current_incident, &
+              & current_incident(i) )
+            call write_timed_value( &
+              & divertors%divertor(i)%current_incident, current_incident(i) )
+#  endif
+          end do
         case ( GEOMETRY_LINEAR, GEOMETRY_CYLINDER )
           if (mpg%nStr.gt.0) then
             allocate( divertors%divertor( mpg%nStr ) )
@@ -2275,6 +2420,7 @@ contains
             &  divertors%divertor(1)%particle_flux_recycled_total, u )
         end select
 #  if ( IMAS_MAJOR_VERSION < 4 || ( IMAS_MAJOR_VERSION == 4 && IMAS_MINOR_VERSION < 1 ) )
+        if (plasmaGeometry.ne.GEOMETRY_GENERAL) then
         allocate( &
           &  wall%global_quantities%electrons%power_inner_target( num_time_slices ) )
         allocate( &
@@ -2295,6 +2441,7 @@ contains
           &  wall%global_quantities%power_density_outer_target_max( num_time_slices ) )
         wall%global_quantities%power_density_outer_target_max( time_sind ) = &
           & power_flux_peak(maxval(mpg%strDiv))
+        end if
 #  endif
         deallocate( ion_power )
         deallocate( electron_power )
@@ -2308,6 +2455,7 @@ contains
         deallocate( power_recombination_plasma )
         deallocate( power_recombination_neutrals )
         deallocate( current_incident )
+        end if
 # endif
 
         !! Write grid & grid subsets/subgrids
@@ -8905,13 +9053,13 @@ contains
         end if
 
 ! Summary divertor plate data
-        if (maxval(mpg%strDiv).gt.0) then
+        if (nDivertorTargets.gt.0) then
 #  if ( IMAS_MINOR_VERSION > 34 || IMAS_MAJOR_VERSION > 3 )
-          allocate ( summary%local%divertor_target( maxval(mpg%strDiv) ) )
+          allocate ( summary%local%divertor_target(nDivertorTargets) )
 #  else
-          allocate ( summary%local%divertor_plate( maxval(mpg%strDiv) ) )
+          allocate ( summary%local%divertor_plate(nDivertorTargets) )
 #  endif
-          do i = 1, maxval(mpg%strDiv)
+          do i = 1, nDivertorTargets
             u = 0.0_R8
             v = 0.0_R8
             nesum = 0.0_R8
@@ -8925,8 +9073,17 @@ contains
               v = v + state%pl%te(iCv)/ev*geo%fcS(iFc)*state%dv%ne(iCv)
             end do
             if (nesum.gt.0.0_R8) v = v / nesum
+            if (plasmaGeometry.eq.GEOMETRY_GENERAL .and. &
+              & (mpg%ivdiv(i).lt.1.or.mpg%ivdiv(i).gt.mpg%nVx)) cycle
 #  if ( IMAS_MINOR_VERSION > 34 || IMAS_MAJOR_VERSION > 3 )
-            call write_sourced_string( summary%local%divertor_target(i)%name, plate_name(i) )
+            if (plasmaGeometry.eq.GEOMETRY_GENERAL) then
+              call write_sourced_string( &
+                & summary%local%divertor_target(i)%name, &
+                & 'B2 divertor target '//int2str(i) )
+            else
+              call write_sourced_string( &
+                & summary%local%divertor_target(i)%name, plate_name(i) )
+            end if
             u = intvertex_s( mpg%ivdiv(i), mpg%nCv, mpg%nVx, mpg, geo%vxVol, state%pl%te )/ev
             call write_sourced_value( summary%local%divertor_target(i)%t_e, u )
             u = intvertex_s( mpg%ivdiv(i), mpg%nCv, mpg%nVx, mpg, geo%vxVol, state%pl%ti )/ev
@@ -8943,12 +9100,19 @@ contains
             u = intvertex_s( mpg%ivdiv(i), mpg%nCv, mpg%nVx, mpg, geo%vxVol, state%dv%ne )
             call write_sourced_value( summary%local%divertor_target(i)%n_e, u )
 #  else
-            call write_sourced_string( summary%local%divertor_plate(i)%name, plate_name(i) )
+            if (plasmaGeometry.eq.GEOMETRY_GENERAL) then
+              call write_sourced_string( &
+                & summary%local%divertor_plate(i)%name, &
+                & 'B2 divertor target '//int2str(i) )
+            else
+              call write_sourced_string( &
+                & summary%local%divertor_plate(i)%name, plate_name(i) )
+            end if
             u = intvertex_s( mpg%ivdiv(i), mpg%nCv, mpg%nVx, mpg, geo%vxVol, state%pl%te )/ev
             call write_sourced_value( summary%local%divertor_plate(i)%t_e, u )
             u = intvertex_s( mpg%ivdiv(i), mpg%nCv, mpg%nVx, mpg, geo%vxVol, state%pl%ti )/ev
             call write_sourced_value( summary%local%divertor_plate(i)%t_i_average, &
-              &   )
+              & u )
             u = intvertex_s( mpg%ivdiv(i), mpg%nCv, mpg%nVx, mpg, geo%vxVol, state%dv%ne )
             call write_sourced_value( summary%local%divertor_plate(i)%n_e, u )
 #  endif
@@ -10120,6 +10284,9 @@ contains
           call write_errored_value( summary%local%separatrix%n_e,         &
               &  nesepm_av(nc), nesepm_std(nc) )
 ! Summary divertor plate data
+          !! Batch averages use structured inner/outer target ordering and
+          !! therefore have no well-defined general-topology representation.
+          if (plasmaGeometry.ne.GEOMETRY_GENERAL) then
           if (maxval(mpg%strDiv).gt.0) then
 #  if ( IMAS_MINOR_VERSION > 34 || IMAS_MAJOR_VERSION > 3 )
             allocate ( summary%local%divertor_target( maxval(mpg%strDiv) ) )
@@ -10188,6 +10355,7 @@ contains
             call write_errored_value( summary%local%divertor_plate(maxval(mpg%strDiv))%n_e, &
               &  nesepa_av(nc), nesepi_std(nc) )
 #  endif
+          end if
           end if
         end if
 
@@ -13449,25 +13617,34 @@ contains
          & iSubsetID.ne.GRID_SUBSET_OUTER_TARGET_INACTIVE .and. &
          & iSubsetID.ne.GRID_SUBSET_INNER_TARGET_INACTIVE) ) cycle
        if (iSubsetID.lt.0) then
-         freg = abs(iSubsetID) - regionCounts(0,gridGeometry)
-         if (freg.le.0) cycle
-         if (boundaryAssignments(freg,gridGeometry).eq.NODIRECTION) cycle
-         select case ( gridGeometry )
-           case ( GEOMETRY_CYLINDER, GEOMETRY_ANNULUS )
-             if ( freg.eq.2 ) cycle
-           case ( GEOMETRY_LIMITER )
-             if ( freg.eq.4 ) cycle
-           case ( GEOMETRY_SN )
-             if ( freg.eq.8 ) cycle
-           case ( GEOMETRY_STELLARATORISLAND )
-             if ( freg.eq.9 ) cycle
-           case ( GEOMETRY_LFS_SNOWFLAKE_MINUS, GEOMETRY_LFS_SNOWFLAKE_PLUS )
-             if ( freg.eq.15 ) cycle
-           case ( GEOMETRY_CDN )
-             if ( freg.eq.14 .or. freg.eq.21 ) cycle
-           case ( GEOMETRY_DDN_BOTTOM, GEOMETRY_DDN_TOP )
-             if ( freg.eq.15 .or. freg.eq.22 ) cycle
-         end select
+         if (gridGeometry.eq.GEOMETRY_GENERAL) then
+           !! Only explicitly declared target subsets are walls in a general
+           !! topology; private cell/face regions carry no wall semantics.
+           if (iSubsetID.gt. &
+             & -(B2_GENERAL_DIVERTOR_TARGET_GSUBSET_BASE+1) .or. &
+             & iSubsetID.lt. &
+             & -(B2_GENERAL_DIVERTOR_TARGET_GSUBSET_BASE+mpg%nDiv)) cycle
+         else
+           freg = abs(iSubsetID) - regionCounts(0,gridGeometry)
+           if (freg.le.0) cycle
+           if (boundaryAssignments(freg,gridGeometry).eq.NODIRECTION) cycle
+           select case ( gridGeometry )
+             case ( GEOMETRY_CYLINDER, GEOMETRY_ANNULUS )
+               if ( freg.eq.2 ) cycle
+             case ( GEOMETRY_LIMITER )
+               if ( freg.eq.4 ) cycle
+             case ( GEOMETRY_SN )
+               if ( freg.eq.8 ) cycle
+             case ( GEOMETRY_STELLARATORISLAND )
+               if ( freg.eq.9 ) cycle
+             case ( GEOMETRY_LFS_SNOWFLAKE_MINUS, GEOMETRY_LFS_SNOWFLAKE_PLUS )
+               if ( freg.eq.15 ) cycle
+             case ( GEOMETRY_CDN )
+               if ( freg.eq.14 .or. freg.eq.21 ) cycle
+             case ( GEOMETRY_DDN_BOTTOM, GEOMETRY_DDN_TOP )
+               if ( freg.eq.15 .or. freg.eq.22 ) cycle
+           end select
+         end if
        end if
        call write_face_vector( basegrid, val( iSubset ), value, &
            &    ggdID, iSubsetID, iSubset )
@@ -13597,25 +13774,32 @@ contains
          & iSubsetID.ne.GRID_SUBSET_OUTER_TARGET_INACTIVE .and. &
          & iSubsetID.ne.GRID_SUBSET_INNER_TARGET_INACTIVE) ) cycle
       if (iSubsetID.lt.0) then
-        freg = abs(iSubsetID) - regionCounts(0,gridGeometry)
-        if (freg.le.0) cycle
-        if (boundaryAssignments(freg,gridGeometry).eq.NODIRECTION) cycle
-        select case ( gridGeometry )
-          case ( GEOMETRY_CYLINDER, GEOMETRY_ANNULUS )
-            if ( freg.eq.2 ) cycle
-          case ( GEOMETRY_LIMITER )
-            if ( freg.eq.4 ) cycle
-          case ( GEOMETRY_SN )
-            if ( freg.eq.8 ) cycle
-          case ( GEOMETRY_STELLARATORISLAND )
-            if ( freg.eq.9 ) cycle
-          case ( GEOMETRY_LFS_SNOWFLAKE_MINUS, GEOMETRY_LFS_SNOWFLAKE_PLUS )
-            if ( freg.eq.15 ) cycle
-          case ( GEOMETRY_CDN )
-            if ( freg.eq.14 .or. freg.eq.21 ) cycle
-          case ( GEOMETRY_DDN_BOTTOM, GEOMETRY_DDN_TOP )
-            if ( freg.eq.15 .or. freg.eq.22 ) cycle
-        end select
+        if (gridGeometry.eq.GEOMETRY_GENERAL) then
+          if (iSubsetID.gt. &
+            & -(B2_GENERAL_DIVERTOR_TARGET_GSUBSET_BASE+1) .or. &
+            & iSubsetID.lt. &
+            & -(B2_GENERAL_DIVERTOR_TARGET_GSUBSET_BASE+mpg%nDiv)) cycle
+        else
+          freg = abs(iSubsetID) - regionCounts(0,gridGeometry)
+          if (freg.le.0) cycle
+          if (boundaryAssignments(freg,gridGeometry).eq.NODIRECTION) cycle
+          select case ( gridGeometry )
+            case ( GEOMETRY_CYLINDER, GEOMETRY_ANNULUS )
+              if ( freg.eq.2 ) cycle
+            case ( GEOMETRY_LIMITER )
+              if ( freg.eq.4 ) cycle
+            case ( GEOMETRY_SN )
+              if ( freg.eq.8 ) cycle
+            case ( GEOMETRY_STELLARATORISLAND )
+              if ( freg.eq.9 ) cycle
+            case ( GEOMETRY_LFS_SNOWFLAKE_MINUS, GEOMETRY_LFS_SNOWFLAKE_PLUS )
+              if ( freg.eq.15 ) cycle
+            case ( GEOMETRY_CDN )
+              if ( freg.eq.14 .or. freg.eq.21 ) cycle
+            case ( GEOMETRY_DDN_BOTTOM, GEOMETRY_DDN_TOP )
+              if ( freg.eq.15 .or. freg.eq.22 ) cycle
+          end select
+        end if
       end if
       idsdata => b2_IMAS_Transform_Wall_ID_B2_To_IDS_Face(    &
                &   basegrid, iSubset, mpg, material_id )

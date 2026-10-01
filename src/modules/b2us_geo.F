@@ -466,7 +466,7 @@
       real (kind=R8) :: hzconst, r0, z0, t0, dux, duy, du, sbf,
      .  Psi1, Psi2, dpsi(mpg%nCv),
      .  dpsi_max_down, dpsi_max_up
-      logical active, match_found
+      logical active, match_found, ftIsClosed(mpg%nFt)
       logical, allocatable :: isPrimaryXpoint(:)
       intrinsic maxval, abs, sqrt
       external b2xbzb, intface, intvertex, ipgeti, xerrab, xertst
@@ -477,13 +477,23 @@
       nFc = mpg%nFc
       nVx = mpg%nVx
 
-*   ..identify periodicity
-      call is_periodic( mpg, gm )
+*   ..classify flux tubes and identify periodicity
+      ftIsClosed = .false.
+      if ((mpg%hasTopologicalData .and. mpg%topoID.eq.0) .or.
+     &    mpg%nnreg(0).eq.1) then
+        call classify_flux_tubes (mpg, ftIsClosed)
+      endif
+      call is_periodic (mpg, ftIsClosed)
 
 *   ..identify cells on closed surfaces
       if (mpg%hasTopologicalData .and. mpg%topoID.eq.0) then
-        write (*,*) 'b2us_geo: general topology, core region 1+4n'
-        mpg%cvOnClosedSurface = mod(mpg%cvReg,4).eq.1
+        mpg%cvOnClosedSurface = .false.
+        do iFt = 1, mpg%nFt
+          do i = mpg%ftCvP(iFt,1),
+     &           mpg%ftCvP(iFt,1)+mpg%ftCvP(iFt,2)-1
+            mpg%cvOnClosedSurface(mpg%ftCv(i)) = ftIsClosed(iFt)
+          enddo
+        enddo
       else
         if (mpg%nnreg(0).eq.1) then
           mpg%cvOnClosedSurface = mpg%periodic_bc.eq.1
@@ -1419,12 +1429,10 @@
       type (mapping), intent (in) :: mpg
       type (geometry), intent (inout) :: gm
       integer :: iCv, iCv1, iCv2, ic
-      integer :: iFc, iFs, iFt, iVx, i, j, k, l,
-     &  nFsEndpoint, nFsFaceAtVertex
+      integer :: iFc, iFs, iFt, iVx, i, j
       integer, save :: conn_style = 0, iout = 0
       real (kind=r8) :: wrk0(mpg%nCv), wrk1(mpg%nCv), L1, L2, LL,
      .  tt0(mpg%nFt), tt1(mpg%nFt), tt2(mpg%nFt), tt3(mpg%nFt)
-      logical :: fsIsClosedLoop
       external ipgeti, my_out_us, xerrab
 
       call ipgeti ('b2mndr_conn_style', conn_style)
@@ -1529,32 +1537,13 @@
           gm%fsConn(iFs) = gm%fsConn(iFs) +
      &                     gm%fcHt(iFc)*gm%fcBb(iFc,3)/gm%fcBb(iFc,0)
         end do
-        nFsEndpoint = 0
-        do i = mpg%fsFcP(iFs,1), mpg%fsFcP(iFs,1)+mpg%fsFcP(iFs,2)-1
-          iFc = mpg%fsFc(i)
-          do k = 1, 2
-            iVx = mpg%fcVx(iFc,k)
-            nFsFaceAtVertex = 0
-            do l = mpg%vxFcP(iVx,1),
-     &        mpg%vxFcP(iVx,1)+mpg%vxFcP(iVx,2)-1
-              if (mpg%fcFs(mpg%vxFc(l)).eq.iFs) then
-                nFsFaceAtVertex = nFsFaceAtVertex + 1
-              endif
-            enddo
-            if (nFsFaceAtVertex.eq.1) then
-              nFsEndpoint = nFsEndpoint + 1
-            endif
-          enddo
-        enddo
-        fsIsClosedLoop = mpg%fsFcP(iFs,2).gt.0 .and. nFsEndpoint.eq.0
         iFc = mpg%fsFc(mpg%fsFcP(iFs,1))
         iCv1 = mpg%fcCv(iFc,1)
         iCv2 = mpg%fcCv(iFc,2)
-        if (fsIsClosedLoop .or.
-     &      (((mpg%cvOnClosedSurface(iCv1).or.iCv1.gt.mpg%nCi) .and.
+        if (((mpg%cvOnClosedSurface(iCv1).or.iCv1.gt.mpg%nCi) .and.
      &       (mpg%cvOnClosedSurface(iCv2).or.iCv2.gt.mpg%nCi)) .or.
      &        iFs.eq.mpg%iFssep .or.
-     &       (iFs.eq.mpg%iFssep2.and.mpg%iFssep2.gt.0))) then
+     &       (iFs.eq.mpg%iFssep2.and.mpg%iFssep2.gt.0)) then
           do j = mpg%fsVxP(iFs,1), mpg%fsVxP(iFs,1)+mpg%fsVxP(iFs,2)-1
             iVx = mpg%fsVx(j)
             gm%vxConn(iVx) = gm%fsConn(iFs)
@@ -1597,74 +1586,249 @@
 
 **********************************************************************
 
-      subroutine is_periodic ( mpg, gm )
+      subroutine classify_flux_tubes (mpg, ftIsClosed)
+      use b2us_map
+      implicit none
+      type(mapping), intent(in) :: mpg
+      logical, intent(out) :: ftIsClosed(mpg%nFt)
+      integer :: i, iCv, iCv1, iCv2, iFc, iFt, iHead, iStart,
+     &  iTail, nSelf, nTerminal, nTubeCv, nTubeFc
+      integer, allocatable :: cellOwner(:), faceOwner(:), incident(:),
+     &  neighborCount(:), neighbor1(:), neighbor2(:), queue(:)
+      logical, allocatable :: inTube(:), visited(:)
+      external xerrab
+
+*   Classify each flux tube from its declared cell and poloidal-face
+*   connectivity. A physical tube must be one connected path with two
+*   terminal faces or one connected cycle with no terminal faces.
+      allocate (cellOwner(mpg%nCv), faceOwner(mpg%nFc),
+     &  incident(mpg%nCv),
+     &  neighborCount(mpg%nCv), neighbor1(mpg%nCv),
+     &  neighbor2(mpg%nCv), queue(mpg%nCv),
+     &  inTube(mpg%nCv), visited(mpg%nCv))
+      cellOwner = 0
+      faceOwner = 0
+      ftIsClosed = .false.
+
+      do iFt = 1, mpg%nFt
+        nTubeCv = mpg%ftCvP(iFt,2)
+        nTubeFc = mpg%ftFcP(iFt,2)
+        if (nTubeCv.lt.0 .or. nTubeFc.lt.0) then
+          write (*,*) 'b2us_geo: negative list count for flux tube ',
+     &                iFt
+          call xerrab ('Malformed flux-tube connectivity')
+          return
+        endif
+        if (nTubeCv.gt.0) then
+          iStart = mpg%ftCvP(iFt,1)
+          if (iStart.lt.1 .or.
+     &        iStart+nTubeCv-1.gt.size(mpg%ftCv)) then
+            write (*,*) 'b2us_geo: invalid cell list for flux tube ',
+     &                  iFt
+            call xerrab ('Malformed flux-tube connectivity')
+            return
+          endif
+        endif
+        if (nTubeFc.gt.0) then
+          iStart = mpg%ftFcP(iFt,1)
+          if (iStart.lt.1 .or.
+     &        iStart+nTubeFc-1.gt.size(mpg%ftFc)) then
+            write (*,*) 'b2us_geo: invalid face list for flux tube ',
+     &                  iFt
+            call xerrab ('Malformed flux-tube connectivity')
+            return
+          endif
+        endif
+
+        inTube = .false.
+        incident = 0
+        neighborCount = 0
+        neighbor1 = 0
+        neighbor2 = 0
+        visited = .false.
+        nSelf = 0
+        nTerminal = 0
+
+        if (nTubeCv.eq.0) then
+          if (nTubeFc.ne.0) then
+            write (*,*) 'b2us_geo: faces on empty flux tube ', iFt
+            call xerrab ('Malformed flux-tube connectivity')
+            return
+          endif
+          cycle
+        endif
+
+        do i = mpg%ftCvP(iFt,1),
+     &           mpg%ftCvP(iFt,1)+nTubeCv-1
+          iCv = mpg%ftCv(i)
+          if (iCv.lt.1 .or. iCv.gt.mpg%nCv) then
+            write (*,*) 'b2us_geo: invalid cell in flux tube ', iFt
+            call xerrab ('Malformed flux-tube connectivity')
+            return
+          endif
+          if (inTube(iCv) .or. cellOwner(iCv).ne.0) then
+            write (*,*) 'b2us_geo: duplicate cell in flux tube ', iFt
+            call xerrab ('Malformed flux-tube connectivity')
+            return
+          endif
+          inTube(iCv) = .true.
+          cellOwner(iCv) = iFt
+        enddo
+
+*       Face-less guard-only tubes do not represent periodic physical
+*       surfaces. calc_conn validates and handles their geometry
+*       separately.
+        if (nTubeFc.eq.0) cycle
+
+        do i = mpg%ftFcP(iFt,1),
+     &           mpg%ftFcP(iFt,1)+nTubeFc-1
+          iFc = mpg%ftFc(i)
+          if (iFc.lt.1 .or. iFc.gt.mpg%nFc) then
+            write (*,*) 'b2us_geo: invalid face in flux tube ', iFt
+            call xerrab ('Malformed flux-tube connectivity')
+            return
+          endif
+          if (faceOwner(iFc).ne.0) then
+            write (*,*) 'b2us_geo: duplicate flux-tube face ', iFc
+            call xerrab ('Malformed flux-tube connectivity')
+            return
+          endif
+          faceOwner(iFc) = iFt
+          iCv1 = mpg%fcCv(iFc,1)
+          iCv2 = mpg%fcCv(iFc,2)
+          if (iCv1.lt.1 .or. iCv1.gt.mpg%nCv .or.
+     &        iCv2.lt.1 .or. iCv2.gt.mpg%nCv) then
+            write (*,*) 'b2us_geo: invalid face cells in flux tube ',
+     &                  iFt
+            call xerrab ('Malformed flux-tube connectivity')
+            return
+          endif
+
+          if (inTube(iCv1) .and. inTube(iCv2)) then
+            if (iCv1.eq.iCv2) then
+              nSelf = nSelf + 1
+              incident(iCv1) = incident(iCv1) + 1
+            else
+              incident(iCv1) = incident(iCv1) + 1
+              incident(iCv2) = incident(iCv2) + 1
+              neighborCount(iCv1) = neighborCount(iCv1) + 1
+              neighborCount(iCv2) = neighborCount(iCv2) + 1
+              if (neighborCount(iCv1).eq.1) then
+                neighbor1(iCv1) = iCv2
+              else if (neighborCount(iCv1).eq.2) then
+                neighbor2(iCv1) = iCv2
+              endif
+              if (neighborCount(iCv2).eq.1) then
+                neighbor1(iCv2) = iCv1
+              else if (neighborCount(iCv2).eq.2) then
+                neighbor2(iCv2) = iCv1
+              endif
+            endif
+          else if (inTube(iCv1) .or. inTube(iCv2)) then
+            nTerminal = nTerminal + 1
+            if (inTube(iCv1)) then
+              incident(iCv1) = incident(iCv1) + 1
+            else
+              incident(iCv2) = incident(iCv2) + 1
+            endif
+          else
+            write (*,*) 'b2us_geo: face has no cell in flux tube ',
+     &                  iFt
+            call xerrab ('Malformed flux-tube connectivity')
+            return
+          endif
+        enddo
+
+        do i = mpg%ftCvP(iFt,1),
+     &           mpg%ftCvP(iFt,1)+nTubeCv-1
+          iCv = mpg%ftCv(i)
+          if (incident(iCv).ne.2 .or.
+     &        neighborCount(iCv).gt.2) then
+            write (*,*) 'b2us_geo: branched or incomplete flux tube ',
+     &                  iFt
+            call xerrab ('Malformed flux-tube connectivity')
+            return
+          endif
+        enddo
+
+        if (nTubeCv.eq.1) then
+          if (nTerminal.eq.0 .and. nSelf.eq.2) then
+            ftIsClosed(iFt) = .true.
+          else if (nTerminal.ne.2 .or. nSelf.ne.0) then
+            write (*,*) 'b2us_geo: invalid one-cell flux tube ', iFt
+            call xerrab ('Malformed flux-tube connectivity')
+            return
+          endif
+          cycle
+        endif
+
+        if (nSelf.ne.0 .or.
+     &      (nTerminal.ne.0 .and. nTerminal.ne.2)) then
+          write (*,*) 'b2us_geo: invalid endpoints for flux tube ',
+     &                iFt
+          call xerrab ('Malformed flux-tube connectivity')
+          return
+        endif
+
+*       Traverse through bounded neighbor lists. This verifies that a
+*       nominal path or cycle has no disconnected component.
+        iCv = mpg%ftCv(mpg%ftCvP(iFt,1))
+        iHead = 1
+        iTail = 1
+        queue(1) = iCv
+        visited(iCv) = .true.
+        do while (iHead.le.iTail)
+          iCv = queue(iHead)
+          iHead = iHead + 1
+          if (neighborCount(iCv).ge.1) then
+            if (.not.visited(neighbor1(iCv))) then
+              iTail = iTail + 1
+              queue(iTail) = neighbor1(iCv)
+              visited(neighbor1(iCv)) = .true.
+            endif
+          endif
+          if (neighborCount(iCv).ge.2) then
+            if (.not.visited(neighbor2(iCv))) then
+              iTail = iTail + 1
+              queue(iTail) = neighbor2(iCv)
+              visited(neighbor2(iCv)) = .true.
+            endif
+          endif
+        enddo
+        if (iTail.ne.nTubeCv) then
+          write (*,*) 'b2us_geo: disconnected flux tube ', iFt
+          call xerrab ('Malformed flux-tube connectivity')
+          return
+        endif
+        ftIsClosed(iFt) = nTerminal.eq.0
+      enddo
+
+      deallocate (cellOwner, faceOwner, incident, neighborCount,
+     &  neighbor1, neighbor2, queue, inTube, visited)
+      return
+      end subroutine classify_flux_tubes
+
+**********************************************************************
+
+      subroutine is_periodic (mpg, ftIsClosed)
       use b2us_map
       implicit none
       type(mapping), intent(inout) :: mpg
-      type(geometry), intent(in) :: gm
-      integer :: iCvm, iCvn, iCvp, iCv, iFc, iFt, icount
-      logical :: closed, end_found, all_closed
+      logical, intent(in) :: ftIsClosed(mpg%nFt)
 
       mpg%periodic_bc = 0
       if (mpg%hasTopologicalData .and. mpg%topoID.eq.0) then
-        write (*,*) 'b2us_geo: general topology not periodic'
+        if (mpg%nFt.gt.0) then
+          if (any(ftIsClosed)) mpg%periodic_bc = 1
+        endif
         return
       endif
       if (mpg%nnreg(0).eq.2 .or. mpg%nnreg(0).eq.5) then
         mpg%periodic_bc = 1
       else if (mpg%nnreg(0).eq.1) then
-        all_closed = mpg%nFt.gt.0
-        do iFt = 1, mpg%nFt
-          closed = .false.
-          iCv = mpg%ftCv(mpg%ftCvP(iFt,1))
-          if (mpg%ftCvP(iFt,2).gt.1) then
-            iCvm = iCv
-            iCvn = 0
-            do iFc = mpg%cvFcP(iCv,1),
-     &               mpg%cvFcP(iCv,1) + mpg%cvFcP(iCv,2) - 1
-              if (gm%fcQalf(mpg%cvFc(iFc),0).eq.0.0_R8) cycle
-              if (mpg%fcCv(mpg%cvFc(iFc),1).eq.iCv) then
-                iCvn = mpg%fcCv(mpg%cvFc(iFc),2)
-              else
-                iCvn = mpg%fcCv(mpg%cvFc(iFc),1)
-              end if
-            end do
-            closed = iCvn.eq.0
-            end_found = iCvn.eq.0
-            do while (.not.end_found)
-              iCvp = 0
-              do iFc = mpg%cvFcP(iCvn,1),
-     &                 mpg%cvFcP(iCvn,1) + mpg%cvFcP(iCvn,2) - 1
-                if (gm%fcQalf(mpg%cvFc(iFc),0).eq.0.0_R8) cycle
-                if (mpg%fcCv(mpg%cvFc(iFc),1).eq.iCvm) cycle
-                if (mpg%fcCv(mpg%cvFc(iFc),2).eq.iCvm) cycle
-                if (mpg%fcCv(mpg%cvFc(iFc),1).eq.iCvn) then
-                  iCvp = mpg%fcCv(mpg%cvFc(iFc),2)
-                else
-                  iCvp = mpg%fcCv(mpg%cvFc(iFc),1)
-                end if
-              end do
-              iCvm = iCvn
-              iCvn = iCvp
-              closed = iCvp.eq.iCv
-              end_found = closed .or. iCvp.eq.0
-            end do
-          else if (mpg%ftCvP(iFt,2).eq.1) then
-            icount = 0
-            iCv = mpg%ftCv(mpg%ftCvP(iFt,1))
-            do iFc = mpg%cvFcP(iCv,1), mpg%cvFcP(iCv,1) +
-     &                                 mpg%cvFcP(iCv,2) - 1
-              if (gm%fcQalf(mpg%cvFc(iFc),0).eq.0.0_R8) cycle
-              if (mpg%fcCv(mpg%cvFc(iFc),1).eq.iCv .and.
-     &            mpg%fcCv(mpg%cvFc(iFc),2).eq.iCv) icount = icount + 1
-            end do
-            closed = icount.eq.2
-          else if (mpg%ftCvP(iFt,2).eq.0) then
-            closed = .true.
-          end if
-          all_closed = all_closed .and. closed
-        end do
-        if (all_closed) mpg%periodic_bc = 1
+        if (mpg%nFt.gt.0) then
+          if (all(ftIsClosed)) mpg%periodic_bc = 1
+        endif
       end if
 
       return

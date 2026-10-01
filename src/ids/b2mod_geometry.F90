@@ -567,15 +567,20 @@ contains
 
     call xertst ( object.eq.1.or.object.eq.2, 'incorrect object setting in geometryId')
 
-    ! If topological mesh data is available, we assume a general
-    ! magnetic field topology.
+    ! Explicit metadata is independent of the geometry classification.
+    ! Only topoflag=0 declares a general topology; standard flags retain
+    ! the established region/connectivity-based classification below.
     if (mpg%hasTopologicalData) then
-        geometryId = GEOMETRY_GENERAL
-        if (firstgmid) then
-            call logmsg( LOGDEBUG, "b2mod_connectivity.geometryId(): identified GEOMETRY_GENERAL")
-            firstgmid = .false.
+        call xertst(mpg%topoID.ge.0.and.mpg%topoID.le.4, &
+            'geometryId: invalid explicit topoflag; expected 0 through 4')
+        if (mpg%topoID.eq.0) then
+            geometryId = GEOMETRY_GENERAL
+            if (firstgmid) then
+                call logmsg( LOGDEBUG, "b2mod_connectivity.geometryId(): identified GEOMETRY_GENERAL")
+                firstgmid = .false.
+            end if
+            return
         end if
-        return
     end if
 
     if (mpg%nnreg(0) == 1 .and. mpg%periodic_bc.le.0) then

@@ -190,40 +190,7 @@ c      hz = 1.0_R8*(1.0_R8-fac_hz)+fac_hz*vol/hx/hy
         if (write_b2fgmtry_us.eq.1) then
 
 *       ..write header for gmtry file
-          call cfverw (nout(1), newversion)
-          idum(0) = mpg%nCi
-          idum(1) = mpg%nCg
-          idum(2) = mpg%nCv
-          idum(3) = mpg%nFc
-          idum(4) = mpg%nVx
-          idum(5) = mpg%nFs
-          idum(6) = mpg%nFt
-          call cfwuin (nout(1),7,idum,'nCi,nCg,nCv,nFc,nVx,nFs,nFt')
-          idum(0) = mpg%nCmxVx
-          idum(1) = mpg%nCmxFc
-          idum(2) = mpg%nVmxCv
-          idum(3) = mpg%nVmxFc
-          idum(4) = mpg%nCmxNv
-          call cfwuin (nout(1),5,idum,
-     .               'nCmxVx,nCmxFc,nVmxCv,nVmxFc,nCmxNv')
-          idum(0) = mpg%isClassicalGrid
-          call cfwuin (nout(1),1,idum,'isClassicalGrid')
-          if (mpg%isClassicalGrid == 1) then
-            idum(0) = mpg%nx
-            idum(1) = mpg%ny
-            idum(2) = mpg%nncut
-          else
-            ! dummy values for unstructured grid
-            idum(0) = -1
-            idum(1) = -1
-            idum(2) = -1
-          endif
-          call cfwuin (nout(1), 3, idum, 'nx,ny,nncut')
-          call cfwuch (nout(1), 120, lblgm, 'label')
-          idum(0) = isymm
-          call cfwuin (nout(1), 1, idum, 'isymm')
-          idum(0) = mpg%nCv
-          idum(1) = mpg%nFc
+          call write_b2fgmtry_header(nout(1), mpg, lblgm, isymm)
 
 *       ..write actual geometry info
           call write_b2fgmtry (nout(1), mpg, gm)

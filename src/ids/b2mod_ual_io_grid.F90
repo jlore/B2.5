@@ -303,6 +303,17 @@ module b2mod_ual_io_grid
     integer, parameter :: B2_GENERIC_GSUBSET_COUNT = 6  !< Total number of
         !< generic grid subsets
 
+    !! Private identifier ranges used only for general B2.5 topologies.
+    !! Negative identifiers are application-defined GGD subsets. Keep the
+    !! ranges disjoint from the legacy private region identifiers and -101.
+    integer, parameter :: B2_GENERAL_CELL_REGION_GSUBSET_BASE = 100000
+    integer, parameter :: B2_GENERAL_FACE_REGION_GSUBSET_BASE = 200000
+    integer, parameter :: B2_GENERAL_O_POINTS_GSUBSET = -300001
+    integer, parameter :: B2_GENERAL_PRIMARY_X_POINTS_GSUBSET = -300002
+    integer, parameter :: B2_GENERAL_STRIKE_POINTS_GSUBSET = -300003
+    integer, parameter :: B2_GENERAL_TANGENCY_POINTS_GSUBSET = -300004
+    integer, parameter :: B2_GENERAL_DIVERTOR_TARGET_GSUBSET_BASE = 400000
+
     !! Generic grid subsets (all cells, all edges)
     !! Note: special grid subsets (given by region ids) do not have specific
     !! constants (see also b2mod_connectivity.f90)
@@ -621,24 +632,34 @@ contains
         integer :: i, j !< Iterators
         integer :: iFn, ing, nb, nn, nv
         integer :: ix, iy
-        integer :: geometryType  !< Plasma geometry identifier index
+        integer :: geometryType     !< B2.5 plasma geometry identifier index
+        integer :: ggdGeometryType  !< External GGD geometry identifier index
 
         geometryType = geometryId( mpg, geo, 2 )
+        ggdGeometryType = geometryType
+        if (geometryType.eq.GEOMETRY_GENERAL) then
+          !! The IMAS GGD identifier dictionary has no general-topology entry.
+          !! Store a valid external identifier and describe the B2.5 topology
+          !! through private grid subsets below.
+          ggdGeometryType = GEOMETRY_UNSPECIFIED
+          call logmsg( LOGWARNING, "b2_IMAS_Fill_Grid_Desc: "// &
+            & "writing general B2.5 topology with unspecified GGD identifier" )
+        end if
 
 #if ( IMAS_MAJOR_VERSION > 4 || ( IMAS_MAJOR_VERSION == 4 && IMAS_MINOR_VERSION > 0 ) )
-        call set_ggd_identifier( grid_ggd%identifier, get_ggd_name(geometryType) )
+        call set_ggd_identifier( grid_ggd%identifier, get_ggd_name(ggdGeometryType) )
 #elif ( IMAS_MAJOR_VERSION > 3 || IMAS_MINOR_VERSION > 30 )
-        grid_ggd%identifier%index = geometryType
+        grid_ggd%identifier%index = ggdGeometryType
         allocate( grid_ggd%identifier%name(1) )
         allocate( grid_ggd%identifier%description(1) )
-        grid_ggd%identifier%name = ggd_identifier%name( geometryType )
-        grid_ggd%identifier%description = ggd_identifier%description( geometryType )
+        grid_ggd%identifier%name = ggd_identifier%name( ggdGeometryType )
+        grid_ggd%identifier%description = ggd_identifier%description( ggdGeometryType )
 #else
-        grid_ggd%identifier%index = geometryType
+        grid_ggd%identifier%index = ggdGeometryType
         allocate( grid_ggd%identifier%name(1) )
         allocate( grid_ggd%identifier%description(1) )
-        grid_ggd%identifier%name = geometryName(geometryType)
-        grid_ggd%identifier%description = geometryDescription(geometryType)
+        grid_ggd%identifier%name = geometryName(ggdGeometryType)
+        grid_ggd%identifier%description = geometryDescription(ggdGeometryType)
 #endif
         allocate( grid_ggd%space( SPACE_COUNT ) )
 
@@ -1222,7 +1243,7 @@ contains
         !! Internal variables
         integer, save :: geoId, plasmaId
 #if ( GGD_MINOR_VERSION > 8 || GGD_MAJOR_VERSION > 1 )
-        integer :: iRegion
+        integer :: iRegion, iRegionNumber, nRegions
         integer :: iPrivateB2
 #endif
         integer :: GSubsetCount, GEmptySubsetCount
@@ -1230,6 +1251,7 @@ contains
         integer :: RegionsInSubset(14)
         integer :: nGSubset !< Total number of grid subsets
         integer :: nInd     !< Size of grid subset element list
+        integer :: nPrimaryXpt !< Number of explicitly primary X-points
         integer :: iCoreGS  !< Core grid subset ID
         integer :: cls(SPACE_COUNT_MAX)
         integer, allocatable :: xpoints(:,:)
@@ -1248,22 +1270,48 @@ contains
         character*128 RegionDescription
 
         !! Procedures
-        external xertst
-#if ( GGD_MINOR_VERSION > 8 || GGD_MAJOR_VERSION > 1 )
-        external xerrab
-#endif
+        external xerrab, xertst
 
         if (ncall.eq.0) then
           geoId = geometryId( mpg, geo, 1 )
           plasmaId = geometryId( mpg, geo, 2 )
         end if
+        nPrimaryXpt = 0
+        if (geoId.eq.GEOMETRY_GENERAL) then
+          if (allocated(mpg%isPrimaryXpt)) &
+            & nPrimaryXpt = count(mpg%isPrimaryXpt.ne.0)
+        end if
+
+#if ( IMAS_MAJOR_VERSION < 4 && IMAS_MINOR_VERSION < 15 )
+        !! Older edge IDS layouts hard-code the standard subset list and
+        !! cannot carry the dynamic private subsets used below.
+        if (geoId.eq.GEOMETRY_GENERAL) call xerrab( &
+          & 'General topology IMAS output requires IMAS DD 3.15 or newer')
+#endif
 
         !! Figure out total number of grid subsets
         !! Do generic + private grid subsets
 #if ( GGD_MINOR_VERSION > 8 || GGD_MAJOR_VERSION > 1 )
-        nGSubset = B2_GENERIC_GSUBSET_COUNT + regionCountTotal(geoId)
+        if (geoId.eq.GEOMETRY_GENERAL) then
+          !! General topology region labels are data, not entries in the
+          !! standard geometry tables. Reserve space for every possible
+          !! positive cell and face region label; empty labels are skipped.
+          !! These private subsets form a one-way B2.5 output contract: the
+          !! IDS input path does not reconstruct B2.5 topology from them.
+          nGSubset = B2_GENERIC_GSUBSET_COUNT + &
+            & mpg%nnreg(0) + mpg%nnreg(1)
+          if (mpg%nOpt.gt.0) nGSubset = nGSubset + 1
+          if (nPrimaryXpt.gt.0) nGSubset = nGSubset + 1
+          if (mpg%nStr.gt.0) nGSubset = nGSubset + 1
+          if (mpg%nTgc.gt.0) nGSubset = nGSubset + 1
+          nGSubset = nGSubset + mpg%nDiv
+        else
+          nGSubset = B2_GENERIC_GSUBSET_COUNT + regionCountTotal(geoId)
+        end if
 #else
         nGSubset = B2_GENERIC_GSUBSET_COUNT
+        if (geoId.eq.GEOMETRY_GENERAL) call xerrab( &
+          & 'General topology IMAS output requires GGD 1.9 or newer')
 #endif
         !! Add pre-defined grid subsets (regions + points)
         select case ( geoId )
@@ -1416,31 +1464,67 @@ contains
         !! grid subset identifiers
         do iType = REGIONTYPE_CELL, REGIONTYPE_EDGE
 
-            select case(iType)
-            case( REGIONTYPE_CELL )
+            if (geoId.eq.GEOMETRY_GENERAL) then
+              select case(iType)
+              case( REGIONTYPE_CELL )
                 cls = CLASS_CELL
-            case( REGIONTYPE_YEDGE, REGIONTYPE_XEDGE, REGIONTYPE_EDGE )
+                nRegions = mpg%nnreg(0)
+              case( REGIONTYPE_EDGE )
                 cls = CLASS_POLOIDALRADIAL_EDGE
-            end select
+                nRegions = mpg%nnreg(1)
+              case default
+                cycle
+              end select
+            else
+              select case(iType)
+              case( REGIONTYPE_CELL )
+                cls = CLASS_CELL
+              case( REGIONTYPE_YEDGE, REGIONTYPE_XEDGE, REGIONTYPE_EDGE )
+                cls = CLASS_POLOIDALRADIAL_EDGE
+              end select
+              nRegions = regionCount(geoId, iType)
+            end if
 
-            do iRegion = 1, regionCount(geoId, iType)
-                select case(iType)
-                case( REGIONTYPE_CELL )
-                  RegionDescription = "Volumetric B2.5 internal region #"// &
-                    &   int2str(iRegion)
-                  iPrivateB2 = -iRegion
-                case( REGIONTYPE_XEDGE, REGIONTYPE_YEDGE, REGIONTYPE_EDGE )
-                  RegionDescription = "Face-based B2.5 internal region #"// &
-                    &   int2str(regionNumber(geoId, iType, iRegion))
-                  iPrivateB2 = -regionCounts(0,geoId)-regionNumbers(iRegion,iType,geoId)
-                end select
+            do iRegion = 1, nRegions
+                if (geoId.eq.GEOMETRY_GENERAL) then
+                  iRegionNumber = iRegion
+                  select case(iType)
+                  case( REGIONTYPE_CELL )
+                    SubsetName = "B2 cell region "//int2str(iRegionNumber)
+                    RegionDescription = &
+                      & "Volumetric B2.5 general-topology region #"// &
+                      & int2str(iRegionNumber)
+                    iPrivateB2 = -(B2_GENERAL_CELL_REGION_GSUBSET_BASE + &
+                      & iRegionNumber)
+                  case( REGIONTYPE_EDGE )
+                    SubsetName = "B2 face region "//int2str(iRegionNumber)
+                    RegionDescription = &
+                      & "Face-based B2.5 general-topology region #"// &
+                      & int2str(iRegionNumber)
+                    iPrivateB2 = -(B2_GENERAL_FACE_REGION_GSUBSET_BASE + &
+                      & iRegionNumber)
+                  end select
+                else
+                  iRegionNumber = regionNumber(geoId, iType, iRegion)
+                  SubsetName = regionName(geoId, iType, iRegion)
+                  select case(iType)
+                  case( REGIONTYPE_CELL )
+                    RegionDescription = "Volumetric B2.5 internal region #"// &
+                      & int2str(iRegion)
+                    iPrivateB2 = -iRegion
+                  case( REGIONTYPE_XEDGE, REGIONTYPE_YEDGE, REGIONTYPE_EDGE )
+                    RegionDescription = "Face-based B2.5 internal region #"// &
+                      & int2str(iRegionNumber)
+                    iPrivateB2 = -regionCounts(0,geoId)-iRegionNumber
+                  end select
+                end if
 
                 !! Get explicit object list of the grid subset using
                 !! subroutine collectIndexListForRegionSubroutine
                 !! (function collectIndexListForRegion transferred to subroutine,
                 !! as array of certain dimension is required as an output)
                 call collectIndexListForRegionSubroutine( mpg,           &
-                    &   iType, regionNumber(geoId, iType, iRegion),      &
+                    &   iType, iRegionNumber,                            &
                     &   indexList2d )
 
                 if ( size(indexList2d,1) > 0 ) then
@@ -1449,13 +1533,13 @@ contains
                     &   " add (private) grid subset #"//                 &
                     &   int2str(GSubsetCount)//                          &
                     &   " for iType "//int2str( iType )//", iRegion "//  &
-                    &   int2str( regionNumber(geoId, iType, iRegion) )   &
-                    &   //": "//regionName(geoId, iType, iRegion) )
+                    &   int2str(iRegionNumber)//                         &
+                    &   ": "//trim(SubsetName) )
 
                 !! Create grid subset with one object list
                   call createEmptyGridSubset(                            &
                     &   local_ggd%grid_subset( GSubsetCount ),           &
-                    &   iPrivateB2, regionName( geoId, iType, iRegion ), &
+                    &   iPrivateB2, SubsetName,                           &
                     &   RegionDescription )
 
                 !! Initialize explicit object list for grid subset
@@ -1467,12 +1551,118 @@ contains
                   GEmptySubsetCount = GEmptySubsetCount + 1
                   call logmsg ( LOGDEBUG, "b2_IMAS_Fill_Grid_Desc:"//    &
                     &   " skip (private) grid subset, iRegion "//        &
-                    &   int2str( regionNumber(geoId, iType, iRegion) )// &
+                    &   int2str(iRegionNumber)//                          &
                     &   " found empty (#"//int2str(GEmptySubsetCount)//")" )
                 end if
 
             end do
         end do
+
+        !! Preserve general-topology objects as private subsets. GGD has a
+        !! standard subset only for all X-points, which was written above.
+        !! These additional groups retain the remaining B2.5 object classes
+        !! and the target face partition without changing standard output.
+        if (geoId.eq.GEOMETRY_GENERAL) then
+          if (mpg%nOpt.gt.0) then
+            if (allocated(indexList2d)) deallocate(indexList2d)
+            allocate(indexList2d(mpg%nOpt,SPACE_COUNT))
+            indexList2d(:,SPACE_POLOIDALPLANE) = mpg%Opt
+            indexList2d(:,SPACE_TOROIDALANGLE) = 1
+            GSubsetCount = GSubsetCount + 1
+            call createEmptyGridSubset(                              &
+              & local_ggd%grid_subset(GSubsetCount),                 &
+              & B2_GENERAL_O_POINTS_GSUBSET, "B2 O-points",        &
+              & "All B2.5 O-points in a general topology." )
+            call createExplicitObjectListSingleSpace( grid_ggd,      &
+              & local_ggd%grid_subset(GSubsetCount), IDS_CLASS_NODE, &
+              & indexList2d(:,SPACE_POLOIDALPLANE), IDS_CLASS_NODE,  &
+              & SPACE_POLOIDALPLANE )
+          end if
+
+          if (nPrimaryXpt.gt.0) then
+            if (allocated(indexList2d)) deallocate(indexList2d)
+            allocate(indexList2d(nPrimaryXpt,SPACE_COUNT))
+            indexList2d(:,SPACE_TOROIDALANGLE) = 1
+            iInd = 0
+            do i = 1, mpg%nXpt
+              if (mpg%isPrimaryXpt(i).ne.0) then
+                iInd = iInd + 1
+                indexList2d(iInd,SPACE_POLOIDALPLANE) = mpg%Xpt(i)
+              end if
+            end do
+            GSubsetCount = GSubsetCount + 1
+            call createEmptyGridSubset(                              &
+              & local_ggd%grid_subset(GSubsetCount),                 &
+              & B2_GENERAL_PRIMARY_X_POINTS_GSUBSET,                 &
+              & "B2 primary X-points",                              &
+              & "Primary B2.5 X-points in a general topology." )
+            call createExplicitObjectListSingleSpace( grid_ggd,      &
+              & local_ggd%grid_subset(GSubsetCount), IDS_CLASS_NODE, &
+              & indexList2d(:,SPACE_POLOIDALPLANE), IDS_CLASS_NODE,  &
+              & SPACE_POLOIDALPLANE )
+          end if
+
+          if (mpg%nStr.gt.0) then
+            if (allocated(indexList2d)) deallocate(indexList2d)
+            allocate(indexList2d(mpg%nStr,SPACE_COUNT))
+            indexList2d(:,SPACE_POLOIDALPLANE) = mpg%strVx
+            indexList2d(:,SPACE_TOROIDALANGLE) = 1
+            GSubsetCount = GSubsetCount + 1
+            call createEmptyGridSubset(                              &
+              & local_ggd%grid_subset(GSubsetCount),                 &
+              & B2_GENERAL_STRIKE_POINTS_GSUBSET, "B2 strike points", &
+              & "All B2.5 strike points in a general topology." )
+            call createExplicitObjectListSingleSpace( grid_ggd,      &
+              & local_ggd%grid_subset(GSubsetCount), IDS_CLASS_NODE, &
+              & indexList2d(:,SPACE_POLOIDALPLANE), IDS_CLASS_NODE,  &
+              & SPACE_POLOIDALPLANE )
+          end if
+
+          if (mpg%nTgc.gt.0) then
+            if (allocated(indexList2d)) deallocate(indexList2d)
+            allocate(indexList2d(mpg%nTgc,SPACE_COUNT))
+            indexList2d(:,SPACE_POLOIDALPLANE) = mpg%tgVx
+            indexList2d(:,SPACE_TOROIDALANGLE) = 1
+            GSubsetCount = GSubsetCount + 1
+            call createEmptyGridSubset(                              &
+              & local_ggd%grid_subset(GSubsetCount),                 &
+              & B2_GENERAL_TANGENCY_POINTS_GSUBSET,                  &
+              & "B2 tangency points",                               &
+              & "All B2.5 target tangency points in a general topology." )
+            call createExplicitObjectListSingleSpace( grid_ggd,      &
+              & local_ggd%grid_subset(GSubsetCount), IDS_CLASS_NODE, &
+              & indexList2d(:,SPACE_POLOIDALPLANE), IDS_CLASS_NODE,  &
+              & SPACE_POLOIDALPLANE )
+          end if
+
+          do i = 1, mpg%nDiv
+            nInd = mpg%divFcP(i,2)
+            if (nInd.gt.0) then
+              if (allocated(indexList2d)) deallocate(indexList2d)
+              allocate(indexList2d(nInd,SPACE_COUNT))
+              indexList2d(:,SPACE_TOROIDALANGLE) = 1
+              do j = 1, nInd
+                indexList2d(j,SPACE_POLOIDALPLANE) = &
+                  & mpg%divFc(mpg%divFcP(i,1)+j-1)
+              end do
+              GSubsetCount = GSubsetCount + 1
+              SubsetName = "B2 divertor target "//int2str(i)
+              RegionDescription = "Faces of B2.5 divertor target #"// &
+                & int2str(i)//" in a general topology."
+              call createEmptyGridSubset(                            &
+                & local_ggd%grid_subset(GSubsetCount),               &
+                & -(B2_GENERAL_DIVERTOR_TARGET_GSUBSET_BASE+i),      &
+                & SubsetName, RegionDescription )
+              call createExplicitObjectListSingleSpace( grid_ggd,    &
+                & local_ggd%grid_subset(GSubsetCount),               &
+                & IDS_CLASS_POLOIDALRADIAL_EDGE,                     &
+                & indexList2d(:,SPACE_POLOIDALPLANE),                &
+                & IDS_CLASS_POLOIDALRADIAL_EDGE, SPACE_POLOIDALPLANE )
+            else
+              GEmptySubsetCount = GEmptySubsetCount + 1
+            end if
+          end do
+        end if
 
         !! Neutral pressure calculation cells
         !! Hard-coded to index -101
@@ -1493,7 +1683,7 @@ contains
                 &   RegionDescription )
 
             !! Get explicit cell list
-            deallocate( indexList2d )
+            if (allocated(indexList2d)) deallocate(indexList2d)
             nInd = npfr_cvs
             allocate( indexList2d(nInd, SPACE_COUNT) )
             do i = 1, nInd
@@ -1507,7 +1697,7 @@ contains
                 &   SPACE_POLOIDALPLANE )
 
         end if
-        deallocate(indexList2d)
+        if (allocated(indexList2d)) deallocate(indexList2d)
 #endif
 
 !! Do the grid subsets that map directly to B2 regions
@@ -2176,17 +2366,21 @@ contains
 
         !! Add midplane node grid subsets
         !! Find the core boundary grid subset by looking for its name as
-        !! defined in b2mod_connectivity
-        iCoreGS = findGridSubsetByName( local_ggd, &
-                &   gridSubsetName( GRID_SUBSET_CORE_BOUNDARY ) )
-        !! For double null, we need the outer half of the core boundary
-        if (iCoreGS == B2_GRID_UNDEFINED) then
-            iCoreGS = findGridSubsetByName( local_ggd, "Outer core boundary")
+        !! defined in b2mod_connectivity. General topologies do not have a
+        !! standard core-boundary subset; their prepared midplane lists can
+        !! still be written directly below.
+        if (geoId.ne.GEOMETRY_GENERAL) then
+          iCoreGS = findGridSubsetByName( local_ggd, &
+                  &   gridSubsetName( GRID_SUBSET_CORE_BOUNDARY ) )
+          !! For double null, we need the outer half of the core boundary
+          if (iCoreGS == B2_GRID_UNDEFINED) then
+              iCoreGS = findGridSubsetByName( local_ggd, "Outer core boundary")
+          end if
+          if (iCoreGS == B2_GRID_UNDEFINED) &
+              & call xerrab ( "fill_In_GridSubset_Desc: "// &
+              & "did not find core boundary grid subset for assembling " // &
+              & " outer midplane grid subset" )
         end if
-        if (iCoreGS == B2_GRID_UNDEFINED) &
-            & call xerrab ( "fill_In_GridSubset_Desc: "// &
-            & "did not find core boundary grid subset for assembling " // &
-            & " outer midplane grid subset" )
 
         if (nimp.gt.0) then
           GSubsetCount = GSubsetCount + 1
@@ -2239,7 +2433,7 @@ contains
         end if
 
         !! Adding other special cases
-        deallocate(indexList2d)
+        if (allocated(indexList2d)) deallocate(indexList2d)
         select case ( geoId )
         case ( GEOMETRY_LINEAR )
           iType = REGIONTYPE_YEDGE
@@ -2507,7 +2701,7 @@ contains
 
         end if
 
-        if (mpg%nStr.gt.0) then
+        if (mpg%nStr.gt.0.and.geoId.ne.GEOMETRY_GENERAL) then
           !! Outer strikepoint
           iVx = US_GRID_UNDEFINED
           do i = 1, mpg%nStr

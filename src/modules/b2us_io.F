@@ -11,17 +11,117 @@
 
       private
 
+      integer, parameter, public :: TOPOLOGY_METADATA_ABSENT = -1
+
       public :: read_b2fgmtry,  write_b2fgmtry,
      .          read_b2fstate,  write_b2fstate,
      .          read_b2fplasma, write_b2fplasma,
-     .          read_b2fgmtry_header
+     .          read_b2fgmtry_header, write_b2fgmtry_header,
+     .          read_b2fgmtry_topology_header
 
       contains
 
 ***********************************************************************
 *     Module containing basic routines for reading/writing data files
 *     in unstructured format.
-*     Note: file headers are read elsewhere
+***********************************************************************
+
+      subroutine reset_b2fgmtry_topology_header(m)
+      implicit none
+      type(mapping), intent(inout) :: m
+
+* ..Use one internal representation for legacy files and for the .002
+*   sentinel which declares that explicit topology metadata is absent.
+      m%hasTopologicalData = .false.
+      m%topoID = TOPOLOGY_METADATA_ABSENT
+      m%nXpt = 0
+      m%nOpt = 0
+      m%nStr = 0
+      m%nTgc = 0
+      m%nDiv = 0
+      m%nfcDiv = 0
+
+      return
+      end subroutine reset_b2fgmtry_topology_header
+
+***********************************************************************
+
+      subroutine read_b2fgmtry_topology_header(ninp, version, m)
+      implicit none
+      integer, intent(in) :: ninp
+      character(10), intent(in) :: version
+      type(mapping), intent(inout) :: m
+      integer :: idum(0:5)
+
+      call reset_b2fgmtry_topology_header(m)
+
+* ..The topology header was introduced in .002.  Older supported files
+*   use the established topology inference path and contain no records
+*   at this location.
+      if (version.lt.'03.002.002') return
+
+      call cfruin (ninp, 1, idum, 'topoflag')
+      m%topoID = idum(0)
+      call xertst (m%topoID.ge.TOPOLOGY_METADATA_ABSENT.and.
+     &             m%topoID.le.4,
+     &  'invalid b2fgmtry topoflag; expected -1 through 4')
+
+      call cfruin (ninp, 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
+      call xertst (all(idum.ge.0),
+     &  'negative count in b2fgmtry topology header')
+
+      if (m%topoID.eq.TOPOLOGY_METADATA_ABSENT) then
+        call xertst (all(idum.eq.0),
+     &    'topoflag=-1 requires zero topology counts')
+        return
+      endif
+
+      m%hasTopologicalData = .true.
+      m%nXpt = idum(0)
+      m%nOpt = idum(1)
+      m%nStr = idum(2)
+      m%nTgc = idum(3)
+      m%nDiv = idum(4)
+      m%nfcDiv = idum(5)
+
+      return
+      end subroutine read_b2fgmtry_topology_header
+
+***********************************************************************
+
+      subroutine write_b2fgmtry_topology_header(nout, m)
+      implicit none
+      integer, intent(in) :: nout
+      type(mapping), intent(in) :: m
+      integer :: idum(0:5)
+
+* ..Every .002 header has a fixed shape.  The -1 sentinel distinguishes
+*   a standard/legacy grid which has no explicit topology metadata.
+      if (m%hasTopologicalData) then
+        call xertst (m%topoID.ge.0.and.m%topoID.le.4,
+     &    'invalid explicit topology flag; expected 0 through 4')
+        idum(0) = m%topoID
+      else
+        idum(0) = TOPOLOGY_METADATA_ABSENT
+      endif
+      call cfwuin (nout, 1, idum, 'topoflag')
+
+      idum = 0
+      if (m%hasTopologicalData) then
+        idum(0) = m%nXpt
+        idum(1) = m%nOpt
+        idum(2) = m%nStr
+        idum(3) = m%nTgc
+        idum(4) = m%nDiv
+        idum(5) = m%nfcDiv
+        call xertst (all(idum.ge.0),
+     &    'negative count in b2fgmtry topology header')
+      endif
+      call cfwuin (nout, 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
+
+      return
+      end subroutine write_b2fgmtry_topology_header
+
 ***********************************************************************
 
       subroutine read_b2fgmtry_header(ninp, version, m, lblgm, isymm)
@@ -34,15 +134,6 @@
       integer :: idum(0:9)
 
       if (version.ge.'03.002.000') then
-        m%hasTopologicalData = .false.
-        m%topoID = 0
-        m%nXpt = 0
-        m%nOpt = 0
-        m%nStr = 0
-        m%nTgc = 0
-        m%nDiv = 0
-        m%nfcDiv = 0
-
         call cfruin (ninp, 7, idum, 'nCi,nCg,nCv,nFc,nVx,nFs,nFt')
         m%nCi = idum(0)
         m%nCg = idum(1)
@@ -73,29 +164,69 @@
           m%nncut = -1
         endif
 
-        if (version.ge.'03.002.002') then
-          m%hasTopologicalData = .true.
-          call cfruin (ninp, 1, idum, 'topoflag')
-          m%topoID = idum(0)
-          call cfruin (ninp, 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
-          m%nXpt = idum(0)
-          m%nOpt = idum(1)
-          m%nStr = idum(2)
-          m%nTgc = idum(3)
-          m%nDiv = idum(4)
-          m%nfcDiv = idum(5)
-        endif
+        call read_b2fgmtry_topology_header(ninp, version, m)
 
         call cfruch (ninp, 120, lblgm, 'label')
         call cfruin (ninp, 1, idum, 'isymm')
         isymm = idum(0)
       else
-        call xerrab('read_b2fgmtry_header: old version detected, ' //
-     &    'not supported')
+        call xerrab('read_b2fgmtry_header: version older than ' //
+     &    '03.002.000; convert the case with b2us first')
       endif
 
       return
       end subroutine read_b2fgmtry_header
+
+***********************************************************************
+
+      subroutine write_b2fgmtry_header(nout, m, lblgm, isymm)
+      implicit none
+      integer, intent(in) :: nout
+      type(mapping), intent(in) :: m
+      character(120), intent(in) :: lblgm
+      integer, intent(in) :: isymm
+      integer :: idum(0:9)
+
+      call cfverw (nout, newversion)
+
+      idum(0) = m%nCi
+      idum(1) = m%nCg
+      idum(2) = m%nCv
+      idum(3) = m%nFc
+      idum(4) = m%nVx
+      idum(5) = m%nFs
+      idum(6) = m%nFt
+      call cfwuin (nout, 7, idum, 'nCi,nCg,nCv,nFc,nVx,nFs,nFt')
+
+      idum(0) = m%nCmxVx
+      idum(1) = m%nCmxFc
+      idum(2) = m%nVmxCv
+      idum(3) = m%nVmxFc
+      idum(4) = m%nCmxNv
+      call cfwuin (nout, 5, idum,
+     &  'nCmxVx,nCmxFc,nVmxCv,nVmxFc,nCmxNv')
+
+      idum(0) = m%isClassicalGrid
+      call cfwuin (nout, 1, idum, 'isClassicalGrid')
+      if (m%isClassicalGrid.eq.1) then
+        idum(0) = m%nx
+        idum(1) = m%ny
+        idum(2) = m%nncut
+      else
+        idum(0) = -1
+        idum(1) = -1
+        idum(2) = -1
+      endif
+      call cfwuin (nout, 3, idum, 'nx,ny,nncut')
+
+      call write_b2fgmtry_topology_header(nout, m)
+
+      call cfwuch (nout, 120, lblgm, 'label')
+      idum(0) = isymm
+      call cfwuin (nout, 1, idum, 'isymm')
+
+      return
+      end subroutine write_b2fgmtry_header
 
 ***********************************************************************
 

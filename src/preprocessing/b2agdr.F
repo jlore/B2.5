@@ -78,7 +78,6 @@
       integer idum(0:9), redef_gmtry
       integer artificial_slab
       character lblgm*120
-      character b2fgmtry_write_version*10
       integer istyle
 *   ..initialisation
       data artificial_slab/0/
@@ -424,60 +423,9 @@
       call nancheck(m%nCv,g%cvConn,'cvConn')
       call nancheck(m%nFs,g%fsPsi,'fsPsi')
 
-* ..output - see module b2us_io and b2us.F
-*   ..write headers for output files - code from b2us.F
-      b2fgmtry_write_version = newversion
-      if (m%hasTopologicalData) then
-        b2fgmtry_write_version = '03.002.002'
-      endif
-      call cfverw (nout(1), b2fgmtry_write_version)
-      idum(0) = m%nCi
-      idum(1) = m%nCg
-      idum(2) = m%nCv
-      idum(3) = m%nFc
-      idum(4) = m%nVx
-      idum(5) = m%nFs
-      idum(6) = m%nFt
-      call cfwuin (nout(1),7,idum,'nCi,nCg,nCv,nFc,nVx,nFs,nFt')
-      idum(0) = m%nCmxVx
-      idum(1) = m%nCmxFc
-      idum(2) = m%nVmxCv
-      idum(3) = m%nVmxFc
-      idum(4) = m%nCmxNv
-      call cfwuin (nout(1),5,idum,'nCmxVx,nCmxFc,nVmxCv,nVmxFc,nCmxNv')
-      idum(0) = m%isClassicalGrid
-      call cfwuin (nout(1),1,idum,'isClassicalGrid')
-      if (m%isClassicalGrid == 1) then
-        idum(0) = m%nx
-        idum(1) = m%ny
-        idum(2) = m%nncut
-      else
-        ! dummy values for unstructured grid
-        idum(0) = -1
-        idum(1) = -1
-        idum(2) = -1
-      endif
-      call cfwuin (nout(1), 3, idum, 'nx,ny,nncut')
-
-*   .. write topological data if available
-      if (m%hasTopologicalData) then
-         ! Topoflag
-         idum(0) = m%topoID
-         call cfwuin (nout(1), 1, idum, 'topoflag')
-
-         ! Number of X-points etc
-         idum(0) = m%nXpt
-         idum(1) = m%nOpt
-         idum(2) = m%nStr
-         idum(3) = m%nTgc
-         idum(4) = m%nDiv
-         idum(5) = m%nfcDiv
-         call cfwuin (nout(1), 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
-      endif
-
-      call cfwuch (nout(1), 120, lblgm, 'label')
-      idum(0) = isymm
-      call cfwuin (nout(1), 1, idum, 'isymm')
+* ..Write the versioned b2fgmtry header, including the fixed .002
+*   topology header for grids with and without explicit metadata.
+      call write_b2fgmtry_header(nout(1), m, lblgm, isymm)
 
 *   ..write summary of geometry
       call write_b2fgmtry (nout(1), m, g)

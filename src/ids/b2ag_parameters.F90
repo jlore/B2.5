@@ -4,6 +4,7 @@ module b2ag_parameters
   use tradui_constants
   use b2mod_version
   use b2ag_ghostcells
+  use b2us_io, only: read_b2fgmtry_topology_header
 
   implicit none
 
@@ -211,35 +212,9 @@ contains
              m%ny = idum(1)
              nncut = idum(2)
            end if
-           ! Additional topological data?
-           if (grid_version >= "03.002.002") then
-            ! Set flag
-            m%hasTopologicalData = .true.
-
-            ! Read in topology ID
-            call cfruin(lun, 1, idum, 'topoflag')
-            m%topoID = idum(0)
-
-            ! Read in x-point, strike point, tangency point, and divertor target numbers
-            call cfruin(lun, 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
-            m%nXpt = idum(0)
-            m%nOpt = idum(1)
-            m%nStr = idum(2)
-            m%nTgc = idum(3)
-            m%nDiv = idum(4)
-            m%nfcDiv = idum(5)
-
-          else
-            ! Set default values
-            m%hasTopologicalData = .false.
-            m%nXpt = 0
-            m%nOpt = 0
-            m%nStr = 0
-            m%nTgc = 0
-            m%nDiv = 0
-            m%nfcDiv = 0
-            m%topoID = 0 ! to be determined later
-           end if
+           ! Read the fixed .002 topology header, or initialize the
+           ! legacy no-metadata state for .000/.001 files.
+           call read_b2fgmtry_topology_header(lun, grid_version, m)
          end if
        end if
      end if

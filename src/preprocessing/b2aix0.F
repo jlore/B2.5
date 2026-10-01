@@ -6,6 +6,7 @@
       use b2mod_subsys
       use b2mod_version
       use b2us_map
+      use b2us_io, only: read_b2fgmtry_topology_header
       implicit none
 *   ..input arguments (unchanged on exit)
       integer ninp(0:1)
@@ -76,7 +77,7 @@
 *   ..obtain mapping/geometry dimensions from file
       call cfverr (ninp(1), b2fgmtry_version)
       if (b2fgmtry_version .lt. '03.002.000') then
-        call xerrab('Using old input format. Run b2us first.')
+        call xerrab('b2aix0: old b2fgmtry format; run b2us first')
       endif
       call cfruin (ninp(1),7,idum,'nCi,nCg,nCv,nFc,nVx,nFs,nFt')
       mpg%nCi = idum(0) 
@@ -99,32 +100,10 @@
       mpg%ny    = idum(1)
       mpg%nncut = idum(2)
 
-*   ..read topological data if available
-      mpg%hasTopologicalData = .false.
-      mpg%topoID = 0
-      mpg%nXpt = 0
-      mpg%nOpt = 0
-      mpg%nStr = 0
-      mpg%nTgc = 0
-      mpg%nDiv = 0
-      mpg%nfcDiv = 0
-      if (b2fgmtry_version.ge.'03.002.002') then
-        ! Set logical
-        mpg%hasTopologicalData = .true.
-
-        ! Read topological mesh flag
-        call cfruin(ninp(1), 1, idum, 'topoflag')
-        mpg%topoID = idum(0)
-
-        ! Read number of topological points
-        call cfruin(ninp(1), 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
-        mpg%nXpt = idum(0)
-        mpg%nOpt = idum(1)
-        mpg%nStr = idum(2)
-        mpg%nTgc = idum(3)
-        mpg%nDiv = idum(4)
-        mpg%nfcDiv = idum(5)
-      endif
+*   ..read the fixed .002 topology header, or initialize the legacy
+*     no-metadata state without consuming records for .000/.001 files
+      call read_b2fgmtry_topology_header(ninp(1), b2fgmtry_version,
+     &  mpg)
 
 *   ..test basic dimensions
       nCv = mpg%nCv
