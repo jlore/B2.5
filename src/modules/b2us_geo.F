@@ -460,7 +460,8 @@
      &           iCv, iFc, iVx, inCv, iXpt, iFc1, iFc2, iVx1, iVx2, iFt,
      &           inv_dist(mpg%nVx)
       integer :: count_up, count_down, count_eq, ndivStrVx,
-     &           ndivStr, ndivTg, tXptVx, ivtmp(2)
+     &           ndivStr, ndivTg, nPrimaryStr, iPrimaryStr,
+     &           tXptVx, ivtmp(2)
       logical :: isUSN
       integer, allocatable :: old_face_list(:), verts(:),
      &           divStrVx(:), divStrVxind(:), tdivFc(:),
@@ -1239,19 +1240,40 @@
           if (ndivStrVx.eq.1) then
             mpg%ivdiv(i) = divStrVx(1)
           else
-            match_found = .false.
-            k = 1
-            do while ((.not.match_found).and.k.le.size(divStrVxind))
+!   ..prefer a unique strike associated with a primary X-point.  If
+!     there is no such strike, a sole strike still takes precedence
+!     over tangencies.  Never let topology-record order resolve a
+!     genuinely ambiguous target reference.
+            nPrimaryStr = 0
+            iPrimaryStr = 0
+            do k = 1, ndivStr
               tXptVx = mpg%strXpt(divStrVxind(k))
-              if (tXptVx.gt.0.and.tXptVx.le.mpg%nVx) then
-                if (isPrimaryXpoint(tXptVx)) then
-                  match_found = .true.
-                  mpg%ivdiv(i) = divStrVx(k)
-                end if
+              call xertst(tXptVx.gt.0.and.tXptVx.le.mpg%nVx,
+     &          'b2us_geo: strike-point X-point ID out of range')
+              if (isPrimaryXpoint(tXptVx)) then
+                nPrimaryStr = nPrimaryStr + 1
+                iPrimaryStr = k
               end if
-              k = k + 1
             end do
-            if (.not.match_found) mpg%ivdiv(i) = divStrVx(1)
+            if (nPrimaryStr.eq.1) then
+              mpg%ivdiv(i) = divStrVx(iPrimaryStr)
+            else if (nPrimaryStr.eq.0.and.ndivStr.eq.1) then
+              mpg%ivdiv(i) = divStrVx(1)
+            else
+              write (*,*) 'b2us_geo: ambiguous reference points for ',
+     &          'divertor target ', i
+              do k = 1, ndivStr
+                tXptVx = mpg%strXpt(divStrVxind(k))
+                write (*,*) '  strike vertex ', divStrVx(k),
+     &            ', X-point ', tXptVx, ', primary ',
+     &            isPrimaryXpoint(tXptVx)
+              end do
+              do k = ndivStr+1, ndivStrVx
+                write (*,*) '  tangency vertex ', divStrVx(k)
+              end do
+              call xerrab('b2us_geo: ambiguous divertor target ' //
+     &          'reference; topology metadata must identify one')
+            end if
           end if
 
           tdivFc = mpg%divFc(mpg%divFcP(i,1):
