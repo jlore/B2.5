@@ -1878,9 +1878,11 @@ CONTAINS
                       mpg%ivdiv(i) = ivx1
                     ELSE IF (mpg%vxfs(ivx1) .EQ. mpg%ifssep .OR. (mpg%&
 &                       vxfs(ivx1) .EQ. mpg%ifssep2 .AND. mpg%ifssep2 &
-&                       .GT. 0)) THEN
+&                       .GT. 0 .AND. mpg%vxfs(mpg%ivdiv(i)) .NE. &
+&                       mpg%ifssep)) THEN
 ! Two strike points on the same target
-! We label the active one only
+! We label the active one only; a strike on ifssep2 does not
+! replace one already found on ifssep
                       mpg%ifdiv(i) = j - mpg%divfcp(i, 1) + 1
                       mpg%ivdiv(i) = ivx1
                     END IF
@@ -1895,9 +1897,11 @@ CONTAINS
                       mpg%ivdiv(i) = ivx2
                     ELSE IF (mpg%vxfs(ivx2) .EQ. mpg%ifssep .OR. (mpg%&
 &                       vxfs(ivx2) .EQ. mpg%ifssep2 .AND. mpg%ifssep2 &
-&                       .GT. 0)) THEN
+&                       .GT. 0 .AND. mpg%vxfs(mpg%ivdiv(i)) .NE. &
+&                       mpg%ifssep)) THEN
 ! Two strike points on the same target
-! We label the active one only
+! We label the active one only; a strike on ifssep2 does not
+! replace one already found on ifssep
                       mpg%ifdiv(i) = j - mpg%divfcp(i, 1) + 1
                       mpg%ivdiv(i) = ivx2
                     END IF

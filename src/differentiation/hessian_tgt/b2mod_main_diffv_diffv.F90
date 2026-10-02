@@ -930,16 +930,10 @@ CONTAINS
     mpg%nx = idum(0)
     mpg%ny = idum(1)
     mpg%nncut = idum(2)
-!   ..consume the fixed .002 topology header.  The checked-in
-!     differentiated mapping predates explicit topology support.
-!     Accept the no-metadata form and reject explicit records below.
+!   ..The checked-in differentiated mapping predates the required
+!     .002 topology fields. Regenerate it before using .002 input.
     IF (b2fgmtry_version .GE. '03.002.002') THEN
-      CALL CFRUIN(ninp(1), 1, idum, 'topoflag')
-      CALL XERTST(idum(0) .EQ. -1, &
-&       'Explicit topology is unsupported in differentiated B2.5')
-      CALL CFRUIN(ninp(1), 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
-      CALL XERTST(ALL(idum(0:5) .EQ. 0), &
-&       'topoflag=-1 requires zero topology counts')
+      CALL XERRAB('Regenerate differentiated B2.5 for .002 topology')
     END IF
 !   ..obtain ns from parameters file
     CALL CFRUIN(ninp(2), 1, idum, 'ns')
@@ -1285,16 +1279,10 @@ CONTAINS
     mpg%nx = idum(0)
     mpg%ny = idum(1)
     mpg%nncut = idum(2)
-!   ..consume the fixed .002 topology header.  The checked-in
-!     differentiated mapping predates explicit topology support.
-!     Accept the no-metadata form and reject explicit records below.
+!   ..The checked-in differentiated mapping predates the required
+!     .002 topology fields. Regenerate it before using .002 input.
     IF (b2fgmtry_version .GE. '03.002.002') THEN
-      CALL CFRUIN(ninp(1), 1, idum, 'topoflag')
-      CALL XERTST(idum(0) .EQ. -1, &
-&       'Explicit topology is unsupported in differentiated B2.5')
-      CALL CFRUIN(ninp(1), 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
-      CALL XERTST(ALL(idum(0:5) .EQ. 0), &
-&       'topoflag=-1 requires zero topology counts')
+      CALL XERRAB('Regenerate differentiated B2.5 for .002 topology')
     END IF
 !   ..obtain ns from parameters file
     CALL CFRUIN(ninp(2), 1, idum, 'ns')
@@ -1620,16 +1608,10 @@ CONTAINS
     mpg%nx = idum(0)
     mpg%ny = idum(1)
     mpg%nncut = idum(2)
-!   ..consume the fixed .002 topology header.  The checked-in
-!     differentiated mapping predates explicit topology support.
-!     Accept the no-metadata form and reject explicit records below.
+!   ..The checked-in differentiated mapping predates the required
+!     .002 topology fields. Regenerate it before using .002 input.
     IF (b2fgmtry_version .GE. '03.002.002') THEN
-      CALL CFRUIN(ninp(1), 1, idum, 'topoflag')
-      CALL XERTST(idum(0) .EQ. -1, &
-&       'Explicit topology is unsupported in differentiated B2.5')
-      CALL CFRUIN(ninp(1), 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
-      CALL XERTST(ALL(idum(0:5) .EQ. 0), &
-&       'topoflag=-1 requires zero topology counts')
+      CALL XERRAB('Regenerate differentiated B2.5 for .002 topology')
     END IF
 !   ..obtain ns from parameters file
     CALL CFRUIN(ninp(2), 1, idum, 'ns')
@@ -1728,16 +1710,10 @@ CONTAINS
     mpg%nx = idum(0)
     mpg%ny = idum(1)
     mpg%nncut = idum(2)
-!   ..consume the fixed .002 topology header.  The checked-in
-!     differentiated mapping predates explicit topology support.
-!     Accept the no-metadata form and reject explicit records below.
+!   ..The checked-in differentiated mapping predates the required
+!     .002 topology fields. Regenerate it before using .002 input.
     IF (b2fgmtry_version .GE. '03.002.002') THEN
-      CALL CFRUIN(ninp(1), 1, idum, 'topoflag')
-      CALL XERTST(idum(0) .EQ. -1, &
-&       'Explicit topology is unsupported in differentiated B2.5')
-      CALL CFRUIN(ninp(1), 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
-      CALL XERTST(ALL(idum(0:5) .EQ. 0), &
-&       'topoflag=-1 requires zero topology counts')
+      CALL XERRAB('Regenerate differentiated B2.5 for .002 topology')
     END IF
 !   ..obtain ns from parameters file
     CALL CFRUIN(ninp(2), 1, idum, 'ns')

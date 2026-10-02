@@ -262,7 +262,8 @@ c prepare the b2time.nc.xxxx or b2batch.nc.xxxx file
       status=nf_create(trim(filename),NF_NOCLOBBER,ncid2)
       call check_cdf_status(status)
       call b2crtimecdf(filename, mpg, ns, ismain, ismain0, nnatmi,
-     .                 nnmoli, write_2d, ncid2, batch_only, iret)
+     .                 nnmoli, maxval(mpg%strDiv), nc, write_2d,
+     .                 ncid2, batch_only, iret)
       status=nf_open(trim(filename),NF_WRITE,ncid2)
       call check_cdf_status(status)
 

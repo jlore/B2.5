@@ -11,7 +11,8 @@
      .          alloc_mapping_cf, dealloc_mapping_cf,
      .          read_mapping, write_mapping,
      .          init_mapping, get_version,
-     .          calc_add_connectivity, update_guard_cells
+     .          calc_add_connectivity, update_guard_cells,
+     .          is_pfr_cell, is_divertor_cell
 
       type, public :: mapping
         integer :: nCv, nFc, nVx, nCg, nCi, nCmxVx, nCmxFc, nVmxCv,
@@ -21,6 +22,7 @@
         integer :: nnreg(0:1), periodic_bc, iFssep, iFssep2
         logical :: hasTopologicalData
         integer :: topoID
+        integer :: geometryID
 
         integer, allocatable :: cvFcP(:,:)             ! (nCv,2) pointing for every cell to the first index number in the cvFc list and its number of faces
         integer, allocatable :: cvFc(:)                !         listing for every cell the corresponding face numbers
@@ -1031,6 +1033,16 @@ cwdk  can be derived directly from data in that file
         m%ivdiv = 0
       endif
 
+!! For a GOAT grid whose declared geometry is a recognized basic family,
+!! rebuild the divertor-target arrays from the SOLPS face regions so the
+!! target ordering follows the manual fcReg convention (2 targets for a
+!! limiter/single null, 4 for a double null), independent of the
+!! strike-polygon ordering carried in the records.
+      if (m%hasTopologicalData .and. m%geometryID.ge.3
+     &    .and. m%geometryID.le.7) then
+        call rederive_divertor_from_fcreg(m)
+      end if
+
 !! standard approach to find X-points: find vertices where 4 of the surrounding faces lie on a flux surface.
       if (.not.m%hasTopologicalData) then
       allocate(indXpt(m%nVx))
@@ -1446,6 +1458,177 @@ cwdk  can be derived directly from data in that file
       end subroutine init_mapping
 
 **********************************************************************
+!> Rebuild the divertor-target arrays (strDiv, divFc, divFcP, nDiv,
+!> nfcDiv, divFcOr) of a GOAT grid from the SOLPS face regions, for a
+!> declared basic family (geometryID 3=limiter, 4=single null,
+!> 5/6/7=double null). The targets are the manual target face regions
+!> (limiter: 1,2; single null: 1,4; double null: 1,4,5,8), so the
+!> ordering follows the fcReg convention (2 or 4 targets) rather than
+!> the strike-polygon ordering in the records; additional X-points add
+!> only volume regions and are absorbed. ifdiv/ivdiv are reallocated
+!> zeroed and filled later in b2us_geo. The clockwise ordering is kept
+!> here; the USN inner/outer correction is applied in b2us_geo, where
+!> the X-point/O-point positions are available.
+      subroutine rederive_divertor_from_fcreg(m)
+      implicit none
+      type(mapping), intent(inout) :: m
+      integer, allocatable :: freg(:), indFc(:),
+     &                        old_face_list(:), new_face_list(:)
+      integer :: i, j, k, iFc, iVx, iVa, iVb, icount, inew, nt
+      logical :: left_match_found, right_match_found
+      external xerrab
+
+!   ..target face regions per basic family
+      if (m%geometryID.eq.3) then
+        allocate(freg(2))
+        freg(1) = 1
+        freg(2) = 2
+      else if (m%geometryID.eq.4) then
+        allocate(freg(2))
+        freg(1) = 1
+        freg(2) = 4
+      else
+        allocate(freg(4))
+        freg(1) = 1
+        freg(2) = 4
+        freg(3) = 5
+        freg(4) = 8
+      end if
+      nt = size(freg)
+
+!   ..per-strike divertor index from the strike's target face region
+      if (allocated(m%strDiv)) then
+        m%strDiv = 0
+        do i = 1, m%nStr
+          iVx = m%strVx(i)
+          do j = m%vxFcP(iVx,1), m%vxFcP(iVx,1) + m%vxFcP(iVx,2) - 1
+            if (m%strDiv(i).ne.0) cycle
+            iFc = m%vxFc(j)
+            do k = 1, nt
+              if (m%fcReg(iFc).eq.freg(k)) m%strDiv(i) = k
+            end do
+          end do
+        end do
+      end if
+
+!   ..per-tangency divertor index (a limiter contact is a tangency
+!     point, not a strike point); tangencies away from a target keep 0
+      if (allocated(m%tgDiv)) then
+        m%tgDiv = 0
+        do i = 1, m%nTgc
+          iVx = m%tgVx(i)
+          do j = m%vxFcP(iVx,1), m%vxFcP(iVx,1) + m%vxFcP(iVx,2) - 1
+            if (m%tgDiv(i).ne.0) cycle
+            iFc = m%vxFc(j)
+            do k = 1, nt
+              if (m%fcReg(iFc).eq.freg(k)) m%tgDiv(i) = k
+            end do
+          end do
+        end do
+      end if
+
+!   ..gather each target's faces (grouped by its face region)
+      if (allocated(m%divFcP)) deallocate(m%divFcP)
+      if (allocated(m%divFc)) deallocate(m%divFc)
+      if (allocated(m%divFcOr)) deallocate(m%divFcOr)
+      if (allocated(m%ifdiv)) deallocate(m%ifdiv)
+      if (allocated(m%ivdiv)) deallocate(m%ivdiv)
+      m%nDiv = nt
+      allocate(m%divFcP(nt,2))
+      allocate(m%ifdiv(nt))
+      allocate(m%ivdiv(nt))
+      allocate(indFc(m%nFc))
+      m%ifdiv = 0
+      m%ivdiv = 0
+      icount = 0
+      m%divFcP(1,1) = 1
+      m%divFcP(:,2) = 0
+      do i = 1, nt
+        if (i.gt.1) m%divFcP(i,1) = m%divFcP(i-1,1) + m%divFcP(i-1,2)
+        do iFc = 1, m%nFc
+          if (m%fcReg(iFc).eq.freg(i)) then
+            icount = icount + 1
+            m%divFcP(i,2) = m%divFcP(i,2) + 1
+            indFc(icount) = iFc
+          end if
+        end do
+      end do
+      m%nfcDiv = icount
+      allocate(m%divFc(m%nfcDiv))
+      allocate(m%divFcOr(m%nfcDiv))
+      m%divFcOr = 0.0_R8
+      m%divFc(1:m%nfcDiv) = indFc(1:m%nfcDiv)
+
+!   ..order each target's faces into a connected chain along the plate
+      do i = 1, nt
+        if (m%divFcP(i,2).le.0) cycle
+        allocate(old_face_list(m%divFcP(i,2)))
+        allocate(new_face_list(m%divFcP(i,2)))
+        old_face_list(1:m%divFcP(i,2)) =
+     &   m%divFc(m%divFcP(i,1):m%divFcP(i,1)+m%divFcP(i,2)-1)
+        new_face_list(:) = 0
+        new_face_list(1) = m%divFc(m%divFcP(i,1))
+        old_face_list(1) = 0
+        iVa = m%fcVx(m%divFc(m%divFcP(i,1)),1)
+        iVb = m%fcVx(m%divFc(m%divFcP(i,1)),2)
+        inew = 1
+        do while (inew.lt.m%divFcP(i,2))
+          left_match_found = .false.
+          do j = 1, m%divFcP(i,2)
+            if (left_match_found) cycle
+            if (old_face_list(j).eq.0) cycle
+            if (iVa.eq.m%fcVx(old_face_list(j),1)) then
+              left_match_found = .true.
+              iVa = m%fcVx(old_face_list(j),2)
+            else if (iVa.eq.m%fcVx(old_face_list(j),2)) then
+              left_match_found = .true.
+              iVa = m%fcVx(old_face_list(j),1)
+            end if
+            if (left_match_found) then
+              indFc(1:inew) = new_face_list(1:inew)
+              new_face_list(1) = old_face_list(j)
+              new_face_list(2:inew+1) = indFc(1:inew)
+              old_face_list(j) = 0
+              inew = inew + 1
+            end if
+          end do
+          right_match_found = .false.
+          do j = 1, m%divFcP(i,2)
+            if (right_match_found) cycle
+            if (old_face_list(j).eq.0) cycle
+            if (iVb.eq.m%fcVx(old_face_list(j),1)) then
+              right_match_found = .true.
+              iVb = m%fcVx(old_face_list(j),2)
+            else if (iVb.eq.m%fcVx(old_face_list(j),2)) then
+              right_match_found = .true.
+              iVb = m%fcVx(old_face_list(j),1)
+            end if
+            if (right_match_found) then
+              new_face_list(inew+1) = old_face_list(j)
+              old_face_list(j) = 0
+              inew = inew + 1
+            end if
+          end do
+          if (.not.(left_match_found.or.right_match_found).and.
+     &        inew.lt.m%divFcP(i,2)) then
+            call xerrab
+     &        ('rederive_divertor_from_fcreg: broken face chain '//
+     &         'along target')
+          end if
+        end do
+        m%divFc(m%divFcP(i,1):m%divFcP(i,1)+m%divFcP(i,2)-1) =
+     &   new_face_list(1:m%divFcP(i,2))
+        deallocate(old_face_list)
+        deallocate(new_face_list)
+      end do
+
+      deallocate(indFc)
+      deallocate(freg)
+
+      return
+      end subroutine rederive_divertor_from_fcreg
+
+**********************************************************************
 
       subroutine get_version(boundary_filename,version)
       implicit none
@@ -1619,6 +1802,49 @@ cwdk  can be derived directly from data in that file
 
 
       end subroutine
+
+**********************************************************************
+!> True if cell iCv lies in a private-flux region, i.e. its flux
+!> tube carries flux-tube region 3.
+!> Works (and it is used) only for basic topologies officially
+!> by B2.5, according to geometryID (3=limiter, 4=single null,
+!> 5/6/7=double null)
+      subroutine is_pfr_cell(m, iCv, res)
+      implicit none
+      type(mapping), intent(in) :: m
+      integer, intent(in) :: iCv
+      logical, intent(out) :: res
+      res = m%ftReg(m%cvFt(iCv)).eq.3
+      return
+      end subroutine is_pfr_cell
+
+**********************************************************************
+!> True if cell iCv lies in a divertor volume region: based on the
+!> divertor regions of the basic family (cvReg mapping to 3 or 4
+!> within its group of four), plus any additional private-flux
+!> regions from secondary X-points (region number beyond the basic
+!> count NREG for the family). NREG comes from the declared SOLPS
+!> geometry ID (3=limiter, 4=single null, 5/6/7=double null).
+      subroutine is_divertor_cell(m, iCv, res)
+      implicit none
+      type(mapping), intent(in) :: m
+      integer, intent(in) :: iCv
+      logical, intent(out) :: res
+      integer :: iir, nregbase
+      iir = m%cvReg(iCv)
+      select case (m%geometryID)
+      case (3)
+        nregbase = 2
+      case (4)
+        nregbase = 4
+      case (5, 6, 7)
+        nregbase = 8
+      case default
+        nregbase = huge(0)
+      end select
+      res = mod(iir-1,4)+1.ge.3 .or. iir.gt.nregbase
+      return
+      end subroutine is_divertor_cell
 
 **********************************************************************
 

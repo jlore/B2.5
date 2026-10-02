@@ -624,6 +624,10 @@ cdpc-debug
       write (*,*) 'Mapping created'
       call prep_geometry (nx, ny, gm, mpg)
       write (*,*) 'Geometry created'
+
+*   ..complete the explicit topology records required by .002 using
+*     the established structured-grid inference
+      call finalize_legacy_topology (mpg, gm)
 !     write unstructured b2fgmtry file
 
 !   ..write header for b2fgmtry

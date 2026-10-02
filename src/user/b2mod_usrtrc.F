@@ -168,6 +168,7 @@ c*** Column headers:
       data hlp_hs / 'i', 'o' /
 
       integer, private :: gridGeometry, plasmaGeometry
+      integer, private :: inner_m4, outer_m4
 
       integer, save :: n_pad_str
       real (kind=R8), save :: xdum(1)
@@ -458,8 +459,8 @@ c***  (ipfc_tmp, jpfc_tmp)
         if(lpfrs_pmp.ne.0.and.npfr_cvs.gt.0) then !{
           do i=1,npfr_cvs !{
             k=mod(mpg%cvReg(pfr_cvs(i)),4)
-            if (k.eq.3) hlp_w(1)=hlp_w(1)+geo%cvSz(pfr_cvs(i))
-            if (k.eq.0) hlp_w(2)=hlp_w(2)+geo%cvSz(pfr_cvs(i))
+            if (k.eq.inner_m4) hlp_w(1)=hlp_w(1)+geo%cvSz(pfr_cvs(i))
+            if (k.eq.outer_m4) hlp_w(2)=hlp_w(2)+geo%cvSz(pfr_cvs(i))
           end do !}
         end if !}
 
@@ -943,7 +944,7 @@ c-----------------------------------------------------------------------
 c*** Western divertor
 
           do j=1,npfr_cvs !{
-            if(mod(mpg%cvReg(pfr_cvs(j)),4).ne.0) cycle
+            if(mod(mpg%cvReg(pfr_cvs(j)),4).ne.inner_m4) cycle
             hlp_si=hlp_si+geo%cvSz(pfr_cvs(j))
             hlp=0.0_R8
             do k=1,nnatmi !{
@@ -966,7 +967,7 @@ c*** Western divertor
 c*** Eastern divertor
 
           do j=1,npfr_cvs !{
-            if(mod(mpg%cvReg(pfr_cvs(j)),4).ne.3) cycle
+            if(mod(mpg%cvReg(pfr_cvs(j)),4).ne.outer_m4) cycle
             hlp_so=hlp_so+geo%cvSz(pfr_cvs(j))
             hlp=0.0_R8
             do k=1,nnatmi !{
@@ -1254,7 +1255,7 @@ c East target
 
         hlp_pwiu=0.0_R8
         do i=1,mpg%divFcP(3,2) !{
-          iFc=mpg%divFc(mpg%divFcP(2,1)+i-1)
+          iFc=mpg%divFc(mpg%divFcP(3,1)+i-1)
           iCv=min(mpg%fcCv(iFc,1),mpg%fcCv(iFc,2))
           s=geo%fcS(iFc)
           hlp=abs(st%dv%fht(iFc,0)+st%dv%fht(iFc,1)+
@@ -1483,8 +1484,10 @@ c*** e the temperature*density*area, v the flux*area
           e=0.0_R8
           v=0.0_R8
           do i=1,npfr_cvs !{
-            if (k.eq.1.and.mod(mpg%cvReg(pfr_cvs(i)),4).ne.3) cycle
-            if (k.eq.2.and.mod(mpg%cvReg(pfr_cvs(i)),4).ne.0) cycle
+            if (k.eq.1.and.mod(mpg%cvReg(pfr_cvs(i)),4).ne.inner_m4)
+     &        cycle
+            if (k.eq.2.and.mod(mpg%cvReg(pfr_cvs(i)),4).ne.outer_m4)
+     &        cycle
             s=s+geo%cvSz(pfr_cvs(i))
             if(ndtm_tmp(j).gt.0) then !{
               g=dab2(pfr_cvs(i),ndtm_tmp(j),1)
@@ -1927,7 +1930,7 @@ c=======================================================================
       integer lnh_tmp
       parameter (lnh_tmp=20)
       character hlp_ha(0:npfrgrpd,ns,npff_tmp)*(lnh_tmp)
-      logical ex, warn_tmp
+      logical ex, warn_tmp, lusn
 c-----------------------------------------------------------------------
 c*** Initialise the file for tracing data
 c-----------------------------------------------------------------------
@@ -1935,6 +1938,16 @@ c-----------------------------------------------------------------------
       tab=char(9)
       gridGeometry = geometryId( mpg, geo, 1 )
       plasmaGeometry = geometryId( mpg, geo, 2 )
+
+c*** private-flux inner/outer follow the divertor-record reordering: an
+c*** upper single null makes the inner leg region 4 (mod 4 = 0)
+      call is_upper_single_null(mpg, geo, lusn)
+      inner_m4 = 3
+      outer_m4 = 0
+      if (lusn) then
+        inner_m4 = 0
+        outer_m4 = 3
+      end if
 
 c*** lun   :  logical unit number for the output file (=ntrc(ltrc))
 c*** f     :  the associated file name

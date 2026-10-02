@@ -489,7 +489,6 @@
         call read_b2fgmtry_topology_header(nrid, grid_version, m)
 
         if (m%hasTopologicalData) then
-
           ! Read X-point data
           read(nrid,*,err=91) idcod, id
           if (streql('*cf:',idcod).and.streql('Vx',id)) then
@@ -500,6 +499,17 @@
               enddo
           else
             call xerrab('read_traduitoutb2us: expected Xpt record')
+          endif
+
+          ! Read per-X-point divertor label
+          read(nrid,*,err=91) idcod, id
+          if (streql('*cf:',idcod).and.streql('xpDivLabel',id)) then
+            do iVx = 1, m%nXpt
+                read(nrid,*,err=91) idum(0)
+              enddo
+          else
+            call xerrab('read_traduitoutb2us: expected xpDivLabel ' //
+     &        'topology')
           endif
 
           ! Read O-point data

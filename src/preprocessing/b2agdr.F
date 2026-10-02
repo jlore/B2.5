@@ -423,8 +423,8 @@
       call nancheck(m%nCv,g%cvConn,'cvConn')
       call nancheck(m%nFs,g%fsPsi,'fsPsi')
 
-* ..Write the versioned b2fgmtry header, including the fixed .002
-*   topology header for grids with and without explicit metadata.
+* ..Write the versioned b2fgmtry header and required .002 topology
+*   metadata.
       call write_b2fgmtry_header(nout(1), m, lblgm, isymm)
 
 *   ..write summary of geometry

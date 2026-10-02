@@ -730,14 +730,16 @@ cdjm Jan2017 Keep linearised sources for balance
      &                                    mpg%ftCvP(iFt,2) - 1
                   iCv = mpg%ftCv(ic)
                   iir = mpg%cvReg(iCv)
-                  if (mpg%hasTopologicalData) then
-c                   General topologies do not use the old region-ID
+                  if (mpg%hasTopologicalData .and.
+     &                (mpg%geometryID.lt.3.or.mpg%geometryID.gt.7))
+     &                then
+c                   General topology: no region-based
 c                   private-flux/divertor classification.
                     lpflux = .false.
                     ldiv = .false.
                   else
-                    lpflux = mpg%ftReg(mpg%cvFt(iCv)).eq.3
-                    ldiv = mod(iir-1,4)+1.ge.3
+                    call is_pfr_cell(mpg, iCv, lpflux)
+                    call is_divertor_cell(mpg, iCv, ldiv)
                   end if
                   poloidal_scale_factor = 1.0_R8
                   elm_region = .false.
@@ -834,14 +836,16 @@ c                   Treat unclassified guard cells as far SOL.
                     cycle
                   end if
                 endif
-                if (mpg%hasTopologicalData) then
-c                 General topologies do not use the old region-ID
+                if (mpg%hasTopologicalData .and.
+     &              (mpg%geometryID.lt.3.or.mpg%geometryID.gt.7))
+     &              then
+c                 General topology: no region-based
 c                 private-flux/divertor classification.
                   lpflux = .false.
                   ldiv = .false.
                 else
-                  lpflux = mpg%ftReg(mpg%cvFt(iCn)).eq.3
-                  ldiv = mod(iir-1,4)+1.ge.3
+                  call is_pfr_cell(mpg, iCn, lpflux)
+                  call is_divertor_cell(mpg, iCn, ldiv)
                 end if
                 poloidal_scale_factor = 1.0_R8
                 elm_region=.false.

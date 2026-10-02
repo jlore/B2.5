@@ -11,8 +11,6 @@
 
       private
 
-      integer, parameter, public :: TOPOLOGY_METADATA_ABSENT = -1
-
       public :: read_b2fgmtry,  write_b2fgmtry,
      .          read_b2fstate,  write_b2fstate,
      .          read_b2fplasma, write_b2fplasma,
@@ -30,10 +28,11 @@
       implicit none
       type(mapping), intent(inout) :: m
 
-* ..Use one internal representation for legacy files and for the .002
-*   sentinel which declares that explicit topology metadata is absent.
+* ..Use one deterministic no-metadata representation for legacy .000
+*   and .001 files.  Every .002 file carries explicit metadata.
       m%hasTopologicalData = .false.
-      m%topoID = TOPOLOGY_METADATA_ABSENT
+      m%topoID = 0
+      m%geometryID = 13
       m%nXpt = 0
       m%nOpt = 0
       m%nStr = 0
@@ -62,19 +61,15 @@
 
       call cfruin (ninp, 1, idum, 'topoflag')
       m%topoID = idum(0)
-      call xertst (m%topoID.ge.TOPOLOGY_METADATA_ABSENT.and.
-     &             m%topoID.le.4,
-     &  'invalid b2fgmtry topoflag; expected -1 through 4')
+      call xertst (m%topoID.ge.0.and.m%topoID.le.4,
+     &  'invalid b2fgmtry topoflag; expected 0 through 4')
+
+      call cfruin (ninp, 1, idum, 'GEOMETRY_ID')
+      m%geometryID = idum(0)
 
       call cfruin (ninp, 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
       call xertst (all(idum.ge.0),
      &  'negative count in b2fgmtry topology header')
-
-      if (m%topoID.eq.TOPOLOGY_METADATA_ABSENT) then
-        call xertst (all(idum.eq.0),
-     &    'topoflag=-1 requires zero topology counts')
-        return
-      endif
 
       m%hasTopologicalData = .true.
       m%nXpt = idum(0)
@@ -95,28 +90,25 @@
       type(mapping), intent(in) :: m
       integer :: idum(0:5)
 
-* ..Every .002 header has a fixed shape.  The -1 sentinel distinguishes
-*   a standard/legacy grid which has no explicit topology metadata.
-      if (m%hasTopologicalData) then
-        call xertst (m%topoID.ge.0.and.m%topoID.le.4,
-     &    'invalid explicit topology flag; expected 0 through 4')
-        idum(0) = m%topoID
-      else
-        idum(0) = TOPOLOGY_METADATA_ABSENT
-      endif
+* ..Every .002 header has the required fixed topology shape.
+      call xertst (m%hasTopologicalData,
+     &  'cannot write .002 b2fgmtry without topology metadata')
+      call xertst (m%topoID.ge.0.and.m%topoID.le.4,
+     &  'invalid explicit topology flag; expected 0 through 4')
+      idum(0) = m%topoID
       call cfwuin (nout, 1, idum, 'topoflag')
 
-      idum = 0
-      if (m%hasTopologicalData) then
-        idum(0) = m%nXpt
-        idum(1) = m%nOpt
-        idum(2) = m%nStr
-        idum(3) = m%nTgc
-        idum(4) = m%nDiv
-        idum(5) = m%nfcDiv
-        call xertst (all(idum.ge.0),
-     &    'negative count in b2fgmtry topology header')
-      endif
+      idum(0) = m%geometryID
+      call cfwuin (nout, 1, idum, 'GEOMETRY_ID')
+
+      idum(0) = m%nXpt
+      idum(1) = m%nOpt
+      idum(2) = m%nStr
+      idum(3) = m%nTgc
+      idum(4) = m%nDiv
+      idum(5) = m%nfcDiv
+      call xertst (all(idum.ge.0),
+     &  'negative count in b2fgmtry topology header')
       call cfwuin (nout, 6, idum, 'nX,nO,nS,nT,nDiv,nDivFc')
 
       return

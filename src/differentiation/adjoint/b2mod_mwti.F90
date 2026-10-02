@@ -3415,12 +3415,19 @@ contains
     real (kind=R8) :: ds_offset
     character*(*) filename
     integer i
+    external xertst
+
+    ! isep=-1 means this target has no strike/tangency reference.
+    ! Keep its coordinate measured from the start of the target.
+    call xertst(nlist.ge.1, 'output_ds_fc: empty target')
+    call xertst(isep.ge.-1.and.isep.lt.nlist, &
+      'output_ds_fc: invalid target reference')
 
     ds(1) = 0.5_R8 * geo%fcHt(fclist(1))
     do i = 2, nlist
       ds(i) = ds(i-1)+ 0.5_R8 * (geo%fcHt(fclist(i-1)) + geo%fcHt(fclist(i)))
     enddo
-    if(isep.ne.0) then
+    if(isep.gt.0) then
       ds_offset = (ds(isep)+ds(isep+1))/2.0_R8
       do i = 1, nlist
         ds(i) = ds(i) - ds_offset

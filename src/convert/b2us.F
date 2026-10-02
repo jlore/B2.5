@@ -186,6 +186,10 @@ c      hz = 1.0_R8*(1.0_R8-fac_hz)+fac_hz*vol/hx/hy
         call prep_geometry (nx, ny, gm, mpg)
         write (*,*) 'Geometry created'
 
+*       Complete the explicit topology records required by .002 while
+*       preserving the established structured-grid inference.
+        call finalize_legacy_topology (mpg, gm)
+
 *     ..write the converted b2fgmtry_us-file
         if (write_b2fgmtry_us.eq.1) then
 

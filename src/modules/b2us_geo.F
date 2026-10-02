@@ -7,7 +7,8 @@
       public :: alloc_geometry, dealloc_geometry,
      .          read_geometry, write_geometry,
      .          init_geometry, calc_conn, check_geometry,
-     .          divide_by_area, split_face_flux, pitch
+     .          divide_by_area, split_face_flux, pitch,
+     .          is_upper_single_null, init_mapping_periodicity
 
       type, public :: geometry
 
@@ -222,6 +223,7 @@
 
       g%LSN = .true.
       g%psi_increasing = .true.
+      g%signmf = 1.0_R8
 
       g%Qalfmax = 1.0e-3_R8
       g%Qalfmin = 1.0e-3_R8
@@ -458,7 +460,8 @@
      &           iCv, iFc, iVx, inCv, iXpt, iFc1, iFc2, iVx1, iVx2, iFt,
      &           inv_dist(mpg%nVx)
       integer :: count_up, count_down, count_eq, ndivStrVx,
-     &           ndivStr, ndivTg, tXptVx
+     &           ndivStr, ndivTg, tXptVx, ivtmp(2)
+      logical :: isUSN
       integer, allocatable :: old_face_list(:), verts(:),
      &           divStrVx(:), divStrVxind(:), tdivFc(:),
      &           tdivFcVx1(:), tdivFcVx2(:)
@@ -1100,8 +1103,11 @@
         end if
        end do
       end if
+      endif
 
-      ! Compute signmf
+!! Compute signmf for every topology.  General topology does not have
+!! one meaningful LSN/USN orientation, but downstream vector
+!! transformations still require a deterministic poloidal-field sign.
       r0=0.0_R8
       z0=0.0_R8
       t0=0.0_R8
@@ -1110,6 +1116,7 @@
       if (any(mpg%cvOnClosedSurface(1:mpg%nCi))) then
         do while (t0.eq.0.0_R8.and.iFt.lt.mpg%nFt)
           iFt=iFt+1
+          if (mpg%ftCvP(iFt,2).le.0) cycle
           iCv=mpg%ftCv(mpg%ftCvP(iFt,1))
           if (mpg%cvOnClosedSurface(iCv)) then
             do i=1,mpg%ftCvP(iFt,2)
@@ -1129,6 +1136,7 @@
         iFt=0
         do while (gm%signmf.eq.0.0_R8.and.iFt.lt.mpg%nFt)
           iFt=iFt+1
+          if (mpg%ftCvP(iFt,2).le.0) cycle
           iCv=mpg%ftCv(mpg%ftCvP(iFt,1))
           if (mpg%cvOnClosedSurface(iCv)) then
             do i=1,mpg%ftCvP(iFt,2)
@@ -1145,14 +1153,46 @@
       else
         gm%signmf=sign(1.0_R8,gm%cvEb(1,0))
       end if
-      endif
 
-!! Explicit topology supplies target data, so still derive strike faces
-!! when temp_ignore_geo bypasses heuristic geometry handling.
+!! Explicit general topology supplies the target records needed below.
+!! Keep their initialization active when temp_ignore_geo is set: the
+!! switch bypasses the legacy geometry heuristics, but the target
+!! coordinates (output_ds_fc), the user diagnostics (b2mod_usrtrc) and
+!! the IDS summary still index ifdiv/ivdiv, which otherwise stay zero.
       if (temp_ignore_geo.eq.0.or.
      &    (mpg%hasTopologicalData.and.mpg%topoID.eq.0)) then
 !! Invert the divertor face list if not in correct psi order
 !! and identify strike point face indices
+!   ..upper single null: reorder the two single-null targets so the
+!     first is the inner and the second the outer, so every consumer
+!     sees a consistent inner/outer ordering (the fcReg numbering
+!     itself stays clockwise). USN is detected from the primary
+!     X-point lying above the O-point.
+      call is_upper_single_null(mpg, gm, isUSN)
+      if (isUSN) then
+        ivtmp = mpg%divFcP(1,:)
+        mpg%divFcP(1,:) = mpg%divFcP(2,:)
+        mpg%divFcP(2,:) = ivtmp
+        do i = 1, mpg%nStr
+          if (mpg%strDiv(i).eq.1) then
+            mpg%strDiv(i) = 2
+          else if (mpg%strDiv(i).eq.2) then
+            mpg%strDiv(i) = 1
+          end if
+        end do
+        if (allocated(mpg%tgDiv)) then
+          do i = 1, mpg%nTgc
+            if (mpg%tgDiv(i).eq.1) then
+              mpg%tgDiv(i) = 2
+            else if (mpg%tgDiv(i).eq.2) then
+              mpg%tgDiv(i) = 1
+            end if
+          end do
+        end if
+        write (*,*) 'b2us_geo: upper single null, first divertor '
+     &    // 'set to inner, second to outer'
+      end if
+
       if (mpg%hasTopologicalData .and. mpg%topoID.eq.0) then
         write (*,*) 'b2us_geo: general topology, not reorienting ' //
      &    'divertor face list'
@@ -1177,8 +1217,15 @@
           end if
           ndivStrVx = ndivStr + ndivTg
 
-          call xertst(ndivStrVx.gt.0,
-     &      'b2us_geo: no strike point for divertor target')
+!   ..a target may legitimately have no strike/tangency of its own
+!     (e.g. one half of a limiter, whose only contact is the shared
+!     tangency assigned to the other half): leave its ivdiv/ifdiv
+!     unset rather than aborting
+          if (ndivStrVx.eq.0) then
+            write (*,*) 'b2us_geo: warning: no strike/tangency point '
+     &        // 'for divertor target ', i, ' - ivdiv/ifdiv left unset'
+            cycle
+          end if
 
           allocate(divStrVx(ndivStrVx), divStrVxind(ndivStr))
           divStrVx(1:ndivStr) = pack(mpg%strVx, mpg%strDiv.eq.i)
@@ -1225,6 +1272,11 @@
             k = k + 1
           end do
 
+          if (.not.match_found) then
+            write (*,*) 'b2us_geo: divertor target ', i,
+     &        ': reference vertex ', mpg%ivdiv(i),
+     &        ' is not shared by two consecutive target faces'
+          end if
           call xertst(match_found,
      &      'b2us_geo: no target face for strike point')
 
@@ -1320,10 +1372,18 @@
                     mpg%ifdiv(i) = j - mpg%divFcP(i,1) + 1
                     mpg%ivdiv(i) = iVx1
                   else ! Two strike points on the same target
-                       ! We label the active one only
+                       ! We label the active one only.  A
+                       ! strike on iFssep2 must not replace
+                       ! one on iFssep: for a disconnected
+                       ! double null with topology data,
+                       ! iFssep2 is the secondary separatrix,
+                       ! which also strikes the primary
+                       ! targets further out in the SOL.
                     if (mpg%vxFs(iVx1).eq.mpg%iFssep.or.
      &                 (mpg%vxFs(iVx1).eq.mpg%iFssep2.and.
-     &                  mpg%iFssep2.gt.0)) then
+     &                  mpg%iFssep2.gt.0.and.
+     &                  mpg%vxFs(mpg%ivdiv(i)).ne.
+     &                  mpg%iFssep)) then
                       mpg%ifdiv(i) = j - mpg%divFcP(i,1) + 1
                       mpg%ivdiv(i) = iVx1
                     end if
@@ -1339,10 +1399,18 @@
                     mpg%ifdiv(i) = j - mpg%divFcP(i,1) + 1
                     mpg%ivdiv(i) = iVx2
                   else ! Two strike points on the same target
-                       ! We label the active one only
+                       ! We label the active one only.  A
+                       ! strike on iFssep2 must not replace
+                       ! one on iFssep: for a disconnected
+                       ! double null with topology data,
+                       ! iFssep2 is the secondary separatrix,
+                       ! which also strikes the primary
+                       ! targets further out in the SOL.
                     if (mpg%vxFs(iVx2).eq.mpg%iFssep.or.
      &                 (mpg%vxFs(iVx2).eq.mpg%iFssep2.and.
-     &                  mpg%iFssep2.gt.0)) then
+     &                  mpg%iFssep2.gt.0.and.
+     &                  mpg%vxFs(mpg%ivdiv(i)).ne.
+     &                  mpg%iFssep)) then
                       mpg%ifdiv(i) = j - mpg%divFcP(i,1) + 1
                       mpg%ivdiv(i) = iVx2
                     end if
@@ -1429,10 +1497,12 @@
       type (mapping), intent (in) :: mpg
       type (geometry), intent (inout) :: gm
       integer :: iCv, iCv1, iCv2, ic
-      integer :: iFc, iFs, iFt, iVx, i, j
+      integer :: iFc, iFs, iFt, iVx, i, j, k, l,
+     &  nFsEndpoint, nFsFaceAtVertex
       integer, save :: conn_style = 0, iout = 0
       real (kind=r8) :: wrk0(mpg%nCv), wrk1(mpg%nCv), L1, L2, LL,
      .  tt0(mpg%nFt), tt1(mpg%nFt), tt2(mpg%nFt), tt3(mpg%nFt)
+      logical :: fsIsClosedLoop
       external ipgeti, my_out_us, xerrab
 
       call ipgeti ('b2mndr_conn_style', conn_style)
@@ -1537,13 +1607,32 @@
           gm%fsConn(iFs) = gm%fsConn(iFs) +
      &                     gm%fcHt(iFc)*gm%fcBb(iFc,3)/gm%fcBb(iFc,0)
         end do
+        nFsEndpoint = 0
+        do i = mpg%fsFcP(iFs,1), mpg%fsFcP(iFs,1)+mpg%fsFcP(iFs,2)-1
+          iFc = mpg%fsFc(i)
+          do k = 1, 2
+            iVx = mpg%fcVx(iFc,k)
+            nFsFaceAtVertex = 0
+            do l = mpg%vxFcP(iVx,1),
+     &        mpg%vxFcP(iVx,1)+mpg%vxFcP(iVx,2)-1
+              if (mpg%fcFs(mpg%vxFc(l)).eq.iFs) then
+                nFsFaceAtVertex = nFsFaceAtVertex + 1
+              endif
+            enddo
+            if (nFsFaceAtVertex.eq.1) then
+              nFsEndpoint = nFsEndpoint + 1
+            endif
+          enddo
+        enddo
+        fsIsClosedLoop = mpg%fsFcP(iFs,2).gt.0 .and. nFsEndpoint.eq.0
         iFc = mpg%fsFc(mpg%fsFcP(iFs,1))
         iCv1 = mpg%fcCv(iFc,1)
         iCv2 = mpg%fcCv(iFc,2)
-        if (((mpg%cvOnClosedSurface(iCv1).or.iCv1.gt.mpg%nCi) .and.
+        if (fsIsClosedLoop .or.
+     &      (((mpg%cvOnClosedSurface(iCv1).or.iCv1.gt.mpg%nCi) .and.
      &       (mpg%cvOnClosedSurface(iCv2).or.iCv2.gt.mpg%nCi)) .or.
      &        iFs.eq.mpg%iFssep .or.
-     &       (iFs.eq.mpg%iFssep2.and.mpg%iFssep2.gt.0)) then
+     &       (iFs.eq.mpg%iFssep2.and.mpg%iFssep2.gt.0))) then
           do j = mpg%fsVxP(iFs,1), mpg%fsVxP(iFs,1)+mpg%fsVxP(iFs,2)-1
             iVx = mpg%fsVx(j)
             gm%vxConn(iVx) = gm%fsConn(iFs)
@@ -1836,6 +1925,23 @@
 
 ***********************************************************************
 
+      subroutine init_mapping_periodicity (mpg)
+      use b2us_map
+      implicit none
+      type(mapping), intent(inout) :: mpg
+      logical :: ftIsClosed(mpg%nFt)
+
+c*** Initialize only the connectivity-derived periodicity needed for
+c*** legacy geometry classification.  Unlike init_geometry, this does
+c*** not modify any stored metric or geometry quantities.
+      call classify_flux_tubes (mpg, ftIsClosed)
+      call is_periodic (mpg, ftIsClosed)
+
+      return
+      end subroutine init_mapping_periodicity
+
+***********************************************************************
+
       subroutine divide_by_area( nFc, geo, flux, flux_density )
       implicit none
       integer, intent(in) :: nFc
@@ -1980,6 +2086,34 @@ csc   than previous face, then identify next vertex
       pitch = sqrt(g%cvBb(iCv,0)**2+g%cvBb(iCv,1)**2)/g%cvBb(iCv,3)
       return
       end function pitch
+
+***********************************************************************
+
+      subroutine is_upper_single_null(m, gm, res)
+      use b2us_map
+      implicit none
+c*** Return .true. for an upper single null: a single-null grid
+c*** (geometryID = 4, GEOMETRY_SN) whose primary X-point lies above the
+c*** O-point. init_geometry reorders the two single-null divertor
+c*** targets in that case so the first is the inner one, while the
+c*** cvReg/fcReg region numbering stays clockwise; region diagnostics
+c*** that read inner/outer off the raw numbering must consult this to
+c*** stay consistent with the reordered records.
+      type(mapping), intent(in) :: m
+      type(geometry), intent(in) :: gm
+      logical, intent(out) :: res
+      integer :: k, iVxP
+      res = .false.
+      if (.not.(m%hasTopologicalData .and. m%geometryID.eq.4 .and.
+     &          m%nDiv.eq.2 .and. allocated(m%Opt) .and.
+     &          allocated(m%Xpt))) return
+      if (size(m%Opt).lt.1) return
+      iVxP = 0
+      do k = 1, size(m%Xpt)
+        if (m%isPrimaryXpt(k).eq.1) iVxP = m%Xpt(k)
+      end do
+      if (iVxP.gt.0) res = gm%vxY(iVxP).gt.gm%vxY(m%Opt(1))
+      end subroutine is_upper_single_null
 
 ***********************************************************************
 
