@@ -590,6 +590,17 @@
 				</description>
 			</switch>
 			<switch>
+				<name>b2us_nasmod_mode</name>
+				<default>0</default>
+				<type>integer</type>
+				<description>
+					Controls EIRENE input block 15 conversion by b2us; specified in b2mn.dat.
+					With the default setting 0, files with nonnegative NASMOD retain the pre-3.2.2 conversion behavior. This writes EIRENE node numbers for the corresponding grid vertices.
+					Negative NASMOD identifies boundary-face labels and endpoints for conversion by b2us. The resulting EIRENE input contains a positive count and node numbers.
+					Set to 1 when the records already contain EIRENE node numbers and require no conversion. NASMOD must then be nonnegative; a negative value causes an error.
+				</description>
+			</switch>
+			<switch>
 				<name>conv_triangles_old_co</name>
 				<default>0</default>
 				<type>integer</type>
