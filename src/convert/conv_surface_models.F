@@ -309,6 +309,9 @@
 
 !  adapt block 15
       read (ineir,'(12i6)') nadmod, nasmod
+      if (b2us_nasmod_mode.eq.1.and.nasmod.lt.0)
+     .  call xerrab('conv_surface_models: negative NASMOD ' //
+     .              'requires b2us_nasmod_mode=0')
       write (iouteir,'(12i6)') nadmod, abs(nasmod)
 
       do i = 1, nadmod
