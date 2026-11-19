@@ -1,4 +1,5 @@
       module b2mod_plasma
+      use b2mod_output_ornl, only: output_level_ornl
       use b2mod_types
       use b2mod_version
       implicit none
@@ -811,10 +812,12 @@ c old style
       facdrift=facdrift_scalar*facdrift_profile
       fac_ExB=fac_ExB_scalar*fac_ExB_profile
       fac_vis=fac_vis_scalar*fac_vis_profile
-      write(*,'(1x,a,1p,6g12.5)') 'facdrift, fac_ExB, fac_vis',
-     &   minval(facdrift),maxval(facdrift),
-     &   minval(fac_ExB),maxval(fac_ExB),
-     &   minval(fac_vis),maxval(fac_vis)
+      if (output_level_ornl.ge.8) then
+        write(*,'(1x,a,1p,6g12.5)') 'facdrift, fac_ExB, fac_vis',
+     &     minval(facdrift),maxval(facdrift),
+     &     minval(fac_ExB),maxval(fac_ExB),
+     &     minval(fac_vis),maxval(fac_vis)
+      endif
       facdrift_ncall=facdrift_ncall+1
       return
       end subroutine set_facdrift_fac_ExB_scale

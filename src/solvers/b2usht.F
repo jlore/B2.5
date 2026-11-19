@@ -5,6 +5,7 @@
      &  rxg, pcm1, pbs, ne, ni, te, ti,
      &  floe, cone, floi, coni, pccm1, she, shi, ceqp,
      &  resht, reshe, reshi, cortt, corte, corti, flo0, con0, aa5, name)
+      use b2mod_output_ornl, only: output_level_ornl
       use b2mod_types
       use b2mod_ma28
       use b2mod_b2cmpa
@@ -285,7 +286,9 @@ cxpb
       enddo
 
 *   ..solve the correction equation
-        write(*,'(1x,a,a)') 'Calling b2ux5p from ', name//'tt'
+        if (output_level_ornl.ge.8) then
+          write(*,'(1x,a,a)') 'Calling b2ux5p from ', name//'tt'
+        endif
         call b2ux5p (nx, ny, aa5, itcnt, resht, cortt, name//'tt')      !srv 18.03.10
       endif                                                             !srv 22.05.18
 
@@ -451,7 +454,9 @@ cxpb
       enddo
 
 *   ..solve the correction equation
-        write(*,'(1x,a,a)') 'Calling b2ux5p from ', name//'te'
+        if (output_level_ornl.ge.8) then
+          write(*,'(1x,a,a)') 'Calling b2ux5p from ', name//'te'
+        endif
         call b2ux5p (nx, ny, aa5, itcnt, reshe, corte, name//'te')      !srv 18.03.10
       endif                                                             !srv 22.05.18
 
@@ -619,7 +624,9 @@ cxpb
       enddo
 
 *   ..solve the correction equation
-      write(*,'(1x,a,a)') 'Calling b2ux5p from ', name//'ti'
+      if (output_level_ornl.ge.8) then
+        write(*,'(1x,a,a)') 'Calling b2ux5p from ', name//'ti'
+      endif
       call b2ux5p (nx, ny, aa5, itcnt, reshi, corti, name//'ti')        !srv 18.03.10
       last_solve_5(ns,0:nnreg(0)) = solveei(0:nnreg(0))
       do iy = -1, ny

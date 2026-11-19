@@ -1,4 +1,5 @@
       module b2mod_ma28_for_7diag                                 !sv 11.01.00
+      use b2mod_output_ornl, only: output_level_ornl
       use b2mod_types
       use b2mod_pardiso, only: pardiso_require
       use b2mod_ysmp_sdrv
@@ -123,7 +124,9 @@
       subroutine restart_ma28_for_7                               !srv 11.01.00
       implicit none
       lfirst_ilu7=.true.
-      write(*,*) 'Restarting ma28_for_7'
+      if (output_level_ornl.ge.8) then
+        write(*,*) 'Restarting ma28_for_7'
+      endif
       return
       end subroutine restart_ma28_for_7
 

@@ -1,5 +1,6 @@
       subroutine b2tlh0 (nx, ny, ns, hx, hy, vol, na, ti,
      & hcib, chcb, hcimx, fllim0fhi)
+      use b2mod_output_ornl, only: output_level_ornl
       use b2mod_types
       use b2mod_indirect
       use b2mod_constants
@@ -276,7 +277,8 @@
        end do
       endif                                                       !srv 13.06.08 }
 
-      if (ncall.lt.100) write(*,'(1x,a,1p,2e10.2)')
+      if (output_level_ornl.ge.8.and.ncall.lt.100)
+     &  write(*,'(1x,a,1p,2e10.2)')
      .  'b2tlh0: maxfluxlimit = ',maxfluxlimit
 
       if (iout.ne.0) then

@@ -4,6 +4,7 @@
       subroutine b2usco (nx, ny, isb, nregionv, solvereg, itcnt, rxg, !srv 06.07.08
      &  pcm1, vol, pbs, nb, pb,
      &  snbv, flob, conb, pccb1, rescb, corpb, aa5, name)             !srv 18.05.02
+      use b2mod_output_ornl, only: output_level_ornl
       use b2mod_types
       use b2mod_indirect
       use b2mod_boundary_namelist
@@ -254,7 +255,9 @@ cxpb
       enddo
       
 *   ..solve the correction equation
-      write(*,'(1x,a,a)') 'Calling b2ux5p from ',name
+      if (output_level_ornl.ge.8) then
+        write(*,'(1x,a,a)') 'Calling b2ux5p from ',name
+      endif
       call b2ux5p (nx, ny, aa5, itcnt, rescb, corpb, name)             !srv 18.03.10
 *   ..redo the scaling
       do iy = -1, ny

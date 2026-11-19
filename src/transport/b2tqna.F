@@ -5,6 +5,7 @@
      &   te, ti, ni, ne, ne2, hx, hy, hy1, vol, crx, cry, conn,        !srv 15.12.05
      &   dna0, dpa0, vla0, vma0, vsa0, hci0, hcib, hce0, sig0, alf0,
      &   hvi0, hve0, wrk0)
+      use b2mod_output_ornl, only: output_level_ornl
       use b2mod_types
       use b2mod_math
       use b2mod_rates
@@ -383,8 +384,10 @@ cxpb Corrected for dimensionality
             hvi0(ix,iy,1) = 0.0_R8
           enddo
         enddo
-        write(*,'(a,i3,1p,2g14.7)') 'is,min_df0,max_df0 ',
-     .   is, min_df0_tmp, max_df0_tmp
+        if (output_level_ornl.ge.8) then
+          write(*,'(a,i3,1p,2g14.7)') 'is,min_df0,max_df0 ',
+     .     is, min_df0_tmp, max_df0_tmp
+        endif
       enddo
 *   ..compute hce0, sig0, alf0
       do iy = -1, ny

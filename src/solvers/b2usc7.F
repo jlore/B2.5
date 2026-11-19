@@ -4,6 +4,7 @@
       subroutine b2usc7 (nx, ny, fac_vis, isb, zb, nregionv, solvereg,  !srv 02.04.18 {
      &  itcnt, rxg, pcm1, vol, pbs, ti, nb, pb,
      &  snbv, flob, conb, pccb1, rescb, corpb, aa7, name)             !srv 18.05.02
+      use b2mod_output_ornl, only: output_level_ornl
       use b2mod_types
       use b2mod_indirect
       use b2mod_boundary_namelist
@@ -272,7 +273,9 @@ cxpb
       enddo
 
 *   ..solve the correction equation
-      write(*,'(1x,a,a)') 'Calling b2ux7p from ',name
+      if (output_level_ornl.ge.8) then
+        write(*,'(1x,a,a)') 'Calling b2ux7p from ',name
+      endif
 !      call b2ux5p (nx, ny, aa5, itcnt, rescb, corpb, name)             !srv 18.03.10
       call b2ux7p (nx, ny, aa7, itcnt, rescb, corpb, name)
 *   ..redo the scaling

@@ -1,4 +1,5 @@
       subroutine tallies(nx,ny,ns,BoRiS)
+      use b2mod_output_ornl, only: output_level_ornl
       use b2mod_types
       use b2mod_geo
       use b2mod_plasma
@@ -481,109 +482,115 @@
         rdneureg(0)=rdneureg(0)+rdneureg(ir)
       enddo
 *    ..write tallies
-      write(*,tally_format) 'Start tallies by region'
-      write(*,'(a,3(1x,i2))') 'nnreg',nnreg
-      write(*,species_format) 'species',ns,
-     * (trim(species_name(is)),is=0,ns-1)
-      if(ncall.eq.0) then
-        write(*,tally_format) 'pot',potave(0:ns-1)
+c Regional quantities are computed at every requested tally call.
+c The complete text listing is reserved for maximum ORNL verbosity.
+      if (output_level_ornl.ge.10) then
+        write(*,tally_format) 'Start tallies by region'
+        write(*,'(a,3(1x,i2))') 'nnreg',nnreg
+        write(*,species_format) 'species',ns,
+     *   (trim(species_name(is)),is=0,ns-1)
+        if(ncall.eq.0) then
+          write(*,tally_format) 'pot',potave(0:ns-1)
+        endif
+        write(*,tally_format) 'rsanareg',rsanareg
+        write(*,tally_format) 'rsahireg',rsahireg
+        write(*,tally_format) 'rsamoreg',rsamoreg
+        write(*,tally_format) 'rranareg',rranareg
+        write(*,tally_format) 'rrahireg',rrahireg
+        write(*,tally_format) 'rramoreg',rramoreg
+        write(*,tally_format) 'rqahereg',rqahereg
+        write(*,tally_format) 'rqradreg',rqradreg
+        write(*,tally_format) 'rqbrmreg',rqbrmreg
+        write(*,tally_format) 'rcxnareg',rcxnareg
+        write(*,tally_format) 'rcxhireg',rcxhireg
+        write(*,tally_format) 'rcxmoreg',rcxmoreg
+        write(*,tally_format) 'fnaxreg',fnaxreg
+        write(*,tally_format) 'fnayreg',fnayreg
+        write(*,tally_format) 'fhixreg',fhixreg
+        write(*,tally_format) 'fhiyreg',fhiyreg
+        write(*,tally_format) 'fhexreg',fhexreg
+        write(*,tally_format) 'fheyreg',fheyreg
+        write(*,tally_format) 'fhpxreg',fhpxreg
+        write(*,tally_format) 'fhpyreg',fhpyreg
+        write(*,tally_format) 'fhmxreg',fhmxreg
+        write(*,tally_format) 'fhmyreg',fhmyreg
+        write(*,tally_format) 'fchxreg',fchxreg
+        write(*,tally_format) 'fchyreg',fchyreg
+        write(*,tally_format) 'fhtxreg',fhtxreg                    !cjk
+        write(*,tally_format) 'fhtyreg',fhtyreg
+        write(*,tally_format) 'fhjxreg',fhjxreg
+        write(*,tally_format) 'fhjyreg',fhjyreg
+        write(*,tally_format) 'qconvixreg',qconvixreg
+        write(*,tally_format) 'qconviyreg',qconviyreg
+        write(*,tally_format) 'qconvexreg',qconvexreg
+        write(*,tally_format) 'qconveyreg',qconveyreg
+        write(*,tally_format) 'b2stbr_sna_reg',b2stbr_sna_reg
+        write(*,tally_format) 'b2stbr_smo_reg',b2stbr_smo_reg
+        write(*,tally_format) 'b2stbr_sne_reg',b2stbr_sne_reg
+        write(*,tally_format) 'b2stbr_she_reg',b2stbr_she_reg
+        write(*,tally_format) 'b2stbr_shi_reg',b2stbr_shi_reg
+        write(*,tally_format) 'b2stbr_sch_reg',b2stbr_sch_reg
+        write(*,tally_format) 'b2stbc_sna_reg',b2stbc_sna_reg
+        write(*,tally_format) 'b2stbc_smo_reg',b2stbc_smo_reg
+        write(*,tally_format) 'b2stbc_sne_reg',b2stbc_sne_reg
+        write(*,tally_format) 'b2stbc_she_reg',b2stbc_she_reg
+        write(*,tally_format) 'b2stbc_shi_reg',b2stbc_shi_reg
+        write(*,tally_format) 'b2stbc_sch_reg',b2stbc_sch_reg
+        write(*,tally_format) 'b2stbm_sna_reg',b2stbm_sna_reg
+        write(*,tally_format) 'b2stbm_smo_reg',b2stbm_smo_reg
+        write(*,tally_format) 'b2stbm_sne_reg',b2stbm_sne_reg
+        write(*,tally_format) 'b2stbm_she_reg',b2stbm_she_reg
+        write(*,tally_format) 'b2stbm_shi_reg',b2stbm_shi_reg
+        write(*,tally_format) 'b2stbm_sch_reg',b2stbm_sch_reg
+        write(*,tally_format) 'b2sext_sna_reg',b2sext_sna_reg
+        write(*,tally_format) 'b2sext_smo_reg',b2sext_smo_reg
+        write(*,tally_format) 'b2sext_sne_reg',b2sext_sne_reg
+        write(*,tally_format) 'b2sext_she_reg',b2sext_she_reg
+        write(*,tally_format) 'b2sext_shi_reg',b2sext_shi_reg
+        write(*,tally_format) 'b2sext_sch_reg',b2sext_sch_reg
+        write(*,tally_format) 'nareg',nareg
+        write(*,tally_format) 'tereg',tereg
+        write(*,tally_format) 'nereg',nereg
+        write(*,tally_format) 'ne2reg',ne2reg
+        write(*,tally_format) 'tireg',tireg
+        write(*,tally_format) 'nireg',nireg
+        write(*,tally_format) 'poreg',poreg
+        write(*,tally_format) 'volreg',volreg
+        write(*,tally_format) 'b2brem',b2brem
+        write(*,tally_format) 'b2rad',b2rad
+        write(*,tally_format) 'b2qie',b2qie
+        write(*,tally_format) 'b2vdp',b2vdp
+        write(*,tally_format) 'b2divue',b2divue
+        write(*,tally_format) 'b2divua',b2divua
+        write(*,tally_format) 'b2exbe',b2exbe
+        write(*,tally_format) 'b2exba',b2exba
+        write(*,tally_format) 'b2visa',b2visa
+        write(*,tally_format) 'b2joule',b2joule
+        write(*,tally_format) 'b2fraa',b2fraa
+        write(*,tally_format) 'b2str',b2str
+        write(*,tally_format) 'b2wrong1',b2wrong1
+        write(*,tally_format) 'b2wrong2',b2wrong2
+        write(*,tally_format) 'b2wrong3',b2wrong3
+        write(*,tally_format) 'b2she',b2she
+        write(*,tally_format) 'b2shi',b2shi
+        write(*,tally_format) 'b2she0',b2she0
+        write(*,tally_format) 'b2shi0',b2shi0
+        write(*,tally_format) 'resco_reg',resco_reg
+        write(*,tally_format) 'resmo_reg',resmo_reg
+        write(*,tally_format) 'reshe_reg',reshe_reg
+        write(*,tally_format) 'reshi_reg',reshi_reg
+        write(*,tally_format) 'resmt_reg',resmt_reg
+        write(*,tally_format) 'respo_reg',respo_reg
+        write(*,tally_format) 'rdneureg',rdneureg
+        write(*,tally_format) 'End tallies by region'
       endif
-      write(*,tally_format) 'rsanareg',rsanareg
-      write(*,tally_format) 'rsahireg',rsahireg
-      write(*,tally_format) 'rsamoreg',rsamoreg
-      write(*,tally_format) 'rranareg',rranareg
-      write(*,tally_format) 'rrahireg',rrahireg
-      write(*,tally_format) 'rramoreg',rramoreg
-      write(*,tally_format) 'rqahereg',rqahereg
-      write(*,tally_format) 'rqradreg',rqradreg
-      write(*,tally_format) 'rqbrmreg',rqbrmreg
-      write(*,tally_format) 'rcxnareg',rcxnareg
-      write(*,tally_format) 'rcxhireg',rcxhireg
-      write(*,tally_format) 'rcxmoreg',rcxmoreg
-      write(*,tally_format) 'fnaxreg',fnaxreg
-      write(*,tally_format) 'fnayreg',fnayreg
-      write(*,tally_format) 'fhixreg',fhixreg
-      write(*,tally_format) 'fhiyreg',fhiyreg
-      write(*,tally_format) 'fhexreg',fhexreg
-      write(*,tally_format) 'fheyreg',fheyreg
-      write(*,tally_format) 'fhpxreg',fhpxreg
-      write(*,tally_format) 'fhpyreg',fhpyreg
-      write(*,tally_format) 'fhmxreg',fhmxreg
-      write(*,tally_format) 'fhmyreg',fhmyreg
-      write(*,tally_format) 'fchxreg',fchxreg
-      write(*,tally_format) 'fchyreg',fchyreg
-      write(*,tally_format) 'fhtxreg',fhtxreg                    !cjk
-      write(*,tally_format) 'fhtyreg',fhtyreg
-      write(*,tally_format) 'fhjxreg',fhjxreg
-      write(*,tally_format) 'fhjyreg',fhjyreg
-      write(*,tally_format) 'qconvixreg',qconvixreg
-      write(*,tally_format) 'qconviyreg',qconviyreg
-      write(*,tally_format) 'qconvexreg',qconvexreg
-      write(*,tally_format) 'qconveyreg',qconveyreg
-      write(*,tally_format) 'b2stbr_sna_reg',b2stbr_sna_reg
-      write(*,tally_format) 'b2stbr_smo_reg',b2stbr_smo_reg
-      write(*,tally_format) 'b2stbr_sne_reg',b2stbr_sne_reg
-      write(*,tally_format) 'b2stbr_she_reg',b2stbr_she_reg
-      write(*,tally_format) 'b2stbr_shi_reg',b2stbr_shi_reg
-      write(*,tally_format) 'b2stbr_sch_reg',b2stbr_sch_reg
-      write(*,tally_format) 'b2stbc_sna_reg',b2stbc_sna_reg
-      write(*,tally_format) 'b2stbc_smo_reg',b2stbc_smo_reg
-      write(*,tally_format) 'b2stbc_sne_reg',b2stbc_sne_reg
-      write(*,tally_format) 'b2stbc_she_reg',b2stbc_she_reg
-      write(*,tally_format) 'b2stbc_shi_reg',b2stbc_shi_reg
-      write(*,tally_format) 'b2stbc_sch_reg',b2stbc_sch_reg
-      write(*,tally_format) 'b2stbm_sna_reg',b2stbm_sna_reg
-      write(*,tally_format) 'b2stbm_smo_reg',b2stbm_smo_reg
-      write(*,tally_format) 'b2stbm_sne_reg',b2stbm_sne_reg
-      write(*,tally_format) 'b2stbm_she_reg',b2stbm_she_reg
-      write(*,tally_format) 'b2stbm_shi_reg',b2stbm_shi_reg
-      write(*,tally_format) 'b2stbm_sch_reg',b2stbm_sch_reg
-      write(*,tally_format) 'b2sext_sna_reg',b2sext_sna_reg
-      write(*,tally_format) 'b2sext_smo_reg',b2sext_smo_reg
-      write(*,tally_format) 'b2sext_sne_reg',b2sext_sne_reg
-      write(*,tally_format) 'b2sext_she_reg',b2sext_she_reg
-      write(*,tally_format) 'b2sext_shi_reg',b2sext_shi_reg
-      write(*,tally_format) 'b2sext_sch_reg',b2sext_sch_reg
-      write(*,tally_format) 'nareg',nareg
-      write(*,tally_format) 'tereg',tereg
-      write(*,tally_format) 'nereg',nereg
-      write(*,tally_format) 'ne2reg',ne2reg
-      write(*,tally_format) 'tireg',tireg
-      write(*,tally_format) 'nireg',nireg
-      write(*,tally_format) 'poreg',poreg
-      write(*,tally_format) 'volreg',volreg
-      write(*,tally_format) 'b2brem',b2brem
-      write(*,tally_format) 'b2rad',b2rad
-      write(*,tally_format) 'b2qie',b2qie
-      write(*,tally_format) 'b2vdp',b2vdp
-      write(*,tally_format) 'b2divue',b2divue
-      write(*,tally_format) 'b2divua',b2divua
-      write(*,tally_format) 'b2exbe',b2exbe
-      write(*,tally_format) 'b2exba',b2exba
-      write(*,tally_format) 'b2visa',b2visa
-      write(*,tally_format) 'b2joule',b2joule
-      write(*,tally_format) 'b2fraa',b2fraa
-      write(*,tally_format) 'b2str',b2str
-      write(*,tally_format) 'b2wrong1',b2wrong1
-      write(*,tally_format) 'b2wrong2',b2wrong2
-      write(*,tally_format) 'b2wrong3',b2wrong3
-      write(*,tally_format) 'b2she',b2she
-      write(*,tally_format) 'b2shi',b2shi
-      write(*,tally_format) 'b2she0',b2she0
-      write(*,tally_format) 'b2shi0',b2shi0
-      write(*,tally_format) 'resco_reg',resco_reg
-      write(*,tally_format) 'resmo_reg',resmo_reg
-      write(*,tally_format) 'reshe_reg',reshe_reg
-      write(*,tally_format) 'reshi_reg',reshi_reg
-      write(*,tally_format) 'resmt_reg',resmt_reg
-      write(*,tally_format) 'respo_reg',respo_reg
-      write(*,tally_format) 'rdneureg',rdneureg
-      write(*,tally_format) 'End tallies by region'
 
 #ifndef NO_CDF
       if(tallies_netcdf.ne.0) then
         if(ncall.eq.0.or.mod(ncall,tallies_netcdf).eq.0) then
-          write(*,tally_format) 'Start (CDF) tallies by region'
+          if (output_level_ornl.ge.10) then
+            write(*,tally_format) 'Start (CDF) tallies by region'
+          endif
           filename='b2tallies.nc'
           call find_file(filename,ex)
           if(ncall.eq.0) then
@@ -822,7 +829,9 @@
      *     'respo_reg',respo_reg)
           call write_cdf_variable(ncid,ntstep,
      *     'rdneureg',rdneureg)
-          write(*,tally_format) 'End (CDF) tallies by region'
+          if (output_level_ornl.ge.10) then
+            write(*,tally_format) 'End (CDF) tallies by region'
+          endif
 
           status=nf_close(ncid)
           call check_cdf_status(status)

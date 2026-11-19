@@ -1,4 +1,5 @@
       module b2mod_ma28
+      use b2mod_output_ornl, only: output_level_ornl
       use b2mod_types
       use b2mod_pardiso, only: pardiso_require
       implicit none
@@ -119,7 +120,9 @@
       subroutine restart_ma28
       implicit none
       lfirst_ilu=.true.
-      write(*,*) 'Restarting ma28'
+      if (output_level_ornl.ge.8) then
+        write(*,*) 'Restarting ma28'
+      endif
       return
       end subroutine restart_ma28
 

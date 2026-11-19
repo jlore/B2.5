@@ -3,6 +3,7 @@
 
       subroutine b2uspo (nx, ny, nregionv, solvereg, itcnt,
      &  ne, te, conc, sch, respo, corpo, aa5, name)                  !srv 18.03.10
+      use b2mod_output_ornl, only: output_level_ornl
       use b2mod_types
       use b2mod_indirect
       use b2mod_constants
@@ -191,7 +192,9 @@ cxpb
       enddo
 
 *   ..solve the correction equation
-      write(*,'(1x,a,a)') 'Calling b2ux5p from '//trim(name)
+      if (output_level_ornl.ge.8) then
+        write(*,'(1x,a,a)') 'Calling b2ux5p from '//trim(name)
+      endif
       call b2ux5p (nx, ny, aa5, itcnt, respo, corpo, name)           !srv 18.03.10
 
       if (iout.ne.0) then                                            !srv 08.07.08 {

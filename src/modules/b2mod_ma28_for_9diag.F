@@ -1,4 +1,5 @@
       module b2mod_ma28_for_9diag                                !sv 13.10.06 {
+      use b2mod_output_ornl, only: output_level_ornl
       use b2mod_types
       implicit none
 
@@ -127,7 +128,9 @@
       subroutine restart_ma28_for_9
       implicit none
       lfirst_ilu9=.true.
-      write(*,*) 'Restarting ma28_for_9'
+      if (output_level_ornl.ge.8) then
+        write(*,*) 'Restarting ma28_for_9'
+      endif
       return
       end subroutine restart_ma28_for_9
 

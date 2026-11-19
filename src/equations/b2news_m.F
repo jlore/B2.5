@@ -3,6 +3,7 @@
 
       subroutine b2news_m (nx, ny, ns, nscx, iscx,
      &  ismain, ismain0, dtim, rxf, ierr, ramp_call) !srv 23.11.10
+      use b2mod_output_ornl, only: output_level_ornl
       use b2mod_types
       use b2mod_geo
       use b2mod_ma28
@@ -1406,9 +1407,13 @@ c   (necessary to work out new rescaling factors sclrtio/sclalph in neutr_scl)
 
 csw 26oct2011 recalculate rescaling factors sclrtio/sclalph (SOLPS4)
       if(no_neutr_scl .eq. 0) then
-        write(*,*) 'Calling b2stbr_neutr_scl'
+        if (output_level_ornl.ge.8) then
+          write(*,*) 'Calling b2stbr_neutr_scl'
+        endif
         call b2stbr_neutr_scl(nx, ny, ns)                                !srv 25.10.08
-        write(*,*) 'Called b2stbr_neutr_scl'
+        if (output_level_ornl.ge.8) then
+          write(*,*) 'Called b2stbr_neutr_scl'
+        endif
       endif
 
 

@@ -4,6 +4,7 @@
       subroutine b2usmo (nx, ny, isb, nregionv, solvereg, itcnt,     !srv 04.07.08
      &  rxg, vol, hx, hz, bb, rob, rzb, pb, pz, ub,                  !srv 09.01.01
      &  smb, flcb, cvsb, resmb, ctcfb, corub, pccb, aa5, aad0, name) !srv 06.04.07
+      use b2mod_output_ornl, only: output_level_ornl
       use b2mod_types
       use b2mod_math
       use b2mod_indirect
@@ -278,10 +279,14 @@ cxpb
       enddo
 *   ..solve the correction equation
       if (index(name,'total').gt.0) then
-       write(*,'(1x,a,a)') 'Calling b2ux5p from ',name
+       if (output_level_ornl.ge.8) then
+         write(*,'(1x,a,a)') 'Calling b2ux5p from ',name
+       endif
       else
-       write(*,'(1x,a,a,a,i3)')
-     .  'Calling b2ux5p from ',name,' for species ',isb
+       if (output_level_ornl.ge.8) then
+         write(*,'(1x,a,a,a,i3)')
+     .    'Calling b2ux5p from ',name,' for species ',isb
+       endif
       end if
       call b2ux5p (nx, ny, aa5, itcnt, resmb, corub, name)            !srv 18.03.10
 

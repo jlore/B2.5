@@ -3,6 +3,7 @@
 
       subroutine b2mndt (nout, nx, ny, ns, ismain, ismain0,
      . nscx, iscx, itim, dtim, ntim, ierr)
+      use b2mod_output_ornl, only: output_level_ornl
       use b2mod_types
       use b2mod_geo
       use b2mod_anomalous_transport
@@ -306,20 +307,20 @@ c therefore initialise here
          call b2spcx (nx, ny, ns, ev, am(iscx(k)), ti, ne,
      &     rlcx(-1,-1,0,0,k))
         enddo
-ctmp.dpc
-        if (nscx.ge.1) then
-         write(*,*) 'DPC: b2mndt: rlcx'
-         do k = 0, nscx-1
-           do is=0, ns-1
-             write(*,'(a,2i4,1p,2g14.7)') 'is0,is,rlcx_0,rlcx_1 ',
-     1            k,is,damax(n2,rlcx(-1,-1,0,is,k),1),
-     2                 damax(n2,rlcx(-1,-1,1,is,k),1)
+        if (output_level_ornl.ge.8) then
+          if (nscx.ge.1) then
+           write(*,*) 'DPC: b2mndt: rlcx'
+           do k = 0, nscx-1
+             do is=0, ns-1
+               write(*,'(a,2i4,1p,2g14.7)') 'is0,is,rlcx_0,rlcx_1 ',
+     1              k,is,damax(n2,rlcx(-1,-1,0,is,k),1),
+     2                   damax(n2,rlcx(-1,-1,1,is,k),1)
+             enddo
            enddo
-         enddo
-        else
-         write(*,*) 'DPC: b2mndt: no CX reactions'
+          else
+           write(*,*) 'DPC: b2mndt: no CX reactions'
+          endif
         endif
-ctmp.dpc
 *    ..intermediate iteration
         istg(1) = 0
     2   if (istg(1).lt.nstg(1) .and. .not.quit_residual) then

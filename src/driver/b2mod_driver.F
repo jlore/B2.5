@@ -1,4 +1,5 @@
       module b2mod_driver
+      use b2mod_output_ornl, only: output_level_ornl
       use b2mod_types
       use b2mod_version
       use b2mod_geo
@@ -1046,6 +1047,14 @@
 *     (Note that the internal parameters are only defined following
 *     the call to b2mnds.)
       if (ncall.eq.0) then
+       call ipgeti ('output_level_ornl', output_level_ornl)
+       call xertst(output_level_ornl.ge.0.and.output_level_ornl.le.10,
+     &   'output_level_ornl should be between 0 and 10')
+c Namelist input is read later and overrides these output defaults.
+       write_nml_bnd = output_level_ornl.ge.10
+       write_nml_neut = output_level_ornl.ge.10
+       write_nml_num = output_level_ornl.ge.10
+       write_nml_transp = output_level_ornl.ge.10
        call print_openmp_info()
        balance_netcdf  = 0 ! Default: do not create balance arrays
        balance_average = 0 ! Default: do not perform averages of balance arrays
@@ -2460,9 +2469,11 @@ c new CDF movie option (1st frame at t=0)
       elapsedinit=epoch_seconds()
 
     1 continue
-      write(*,'(1x,a,i9,1p,g14.7,i9,i3,1x,l1)')
-     . 'b2mndr_00:itim,dtim,ntim,stack_ptr',
-     1            itim,dteff,ntim,stack_ptr,quit
+      if (output_level_ornl.ge.8) then
+        write(*,'(1x,a,i9,1p,g14.7,i9,i3,1x,l1)')
+     .   'b2mndr_00:itim,dtim,ntim,stack_ptr',
+     1              itim,dteff,ntim,stack_ptr,quit
+      endif
 
 #ifdef _OPENMP
       cpustart = omp_get_wtime()
@@ -2523,9 +2534,11 @@ csw 09oct2012 set default potential already at this point (BCs)
 *    ..perform one time step
         ok=.false.
         do while(.not.ok)
-          write(*,'(1x,a,i9,1p,g14.7,i9,i3)')
-     .     'b2mndr_ok:itim,dtim,ntim,stack_ptr',
-     1                itim,dteff,ntim,stack_ptr
+          if (output_level_ornl.ge.8) then
+            write(*,'(1x,a,i9,1p,g14.7,i9,i3)')
+     .       'b2mndr_ok:itim,dtim,ntim,stack_ptr',
+     1                  itim,dteff,ntim,stack_ptr
+          endif
           call b2mndt (nout, nx, ny, ns, ismain, ismain0,
      &     nscx, iscx, itim, dtim, ntim, ierr)
 

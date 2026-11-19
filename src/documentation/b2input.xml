@@ -2971,6 +2971,14 @@
 		</category>
 		<category name="Output">
 			<switch>
+				<name>output_level_ornl</name>
+				<default>0</default>
+				<type>integer</type>
+				<description>
+					ORNL-only verbosity control for optional B2.5 text diagnostics, from 0 (minimum production output) to 10 (maximum diagnostic output). Detailed solver, iteration and transport messages require level 8. Regional tally text and default namelist echoes require level 10. Warnings, errors, timestep timing, solver timing requested by b2ux*p_cpu, and convergence monitoring are independent of this switch. Tally calculations and NetCDF output are unchanged. Below level 10, WRITE_NML_BND, WRITE_NML_NEUT, WRITE_NML_NUM and WRITE_NML_TRANSP default to .false.; explicit values in the corresponding namelist files override these defaults. EIRENE output controls remain independent.
+				</description>
+			</switch>
+			<switch>
 				<name>b2mndr_b2time</name>
 				<default>1</default>
 				<type>integer</type>
@@ -5895,10 +5903,10 @@
 			</switch>
 			<switch>
 				<name>WRITE_NML_NEUT</name>
-				<default>.true.</default>
+				<default>.false. for output_level_ornl 0-9; .true. for level 10</default>
 				<type>logical</type>
 				<description>
-					If .true. (default), writes the content of the namelist to stdout after it has been read.
+					If .true., writes the content of the namelist to stdout after it has been read. An explicit value overrides the default selected by output_level_ornl.
 				</description>
 			</switch>
 			<switch>
@@ -6759,10 +6767,10 @@
 			</switch>
 			<switch>
 				<name>WRITE_NML_BND</name>
-				<default>.true.</default>
+				<default>.false. for output_level_ornl 0-9; .true. for level 10</default>
 				<type>logical</type>
 				<description>
-					If .true. (default), writes the content of the namelist to stdout after it has been read.
+					If .true., writes the content of the namelist to stdout after it has been read. An explicit value overrides the default selected by output_level_ornl.
 				</description>
 			</switch>
 			<switch>
@@ -7796,10 +7804,10 @@
 			</switch>
 			<switch>
 				<name>WRITE_NML_NUM</name>
-				<default>.true.</default>
+				<default>.false. for output_level_ornl 0-9; .true. for level 10</default>
 				<type>logical</type>
 				<description>
-					If .true. (default), writes the content of the namelist to stdout after it has been read.
+					If .true., writes the content of the namelist to stdout after it has been read. An explicit value overrides the default selected by output_level_ornl.
 				</description>
 			</switch>
 			<switch>
@@ -8131,10 +8139,10 @@
 			</switchgroup>
 			<switch>
 				<name>WRITE_NML_TRANSP</name>
-				<default>.true.</default>
+				<default>.false. for output_level_ornl 0-9; .true. for level 10</default>
 				<type>logical</type>
 				<description>
-					If .true. (default), writes the content of the namelist to stdout after it has been read.
+					If .true., writes the content of the namelist to stdout after it has been read. An explicit value overrides the default selected by output_level_ornl.
 				</description>
 			</switch>
 			<switchgroup>
