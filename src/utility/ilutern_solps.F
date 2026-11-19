@@ -2,6 +2,7 @@
      .      RHS, SOL, NAME)                                          !srv 18.03.10
       use b2mod_types
       use b2mod_ma28
+      use b2mod_pardiso, only: pardiso_solve
       use b2mod_indirect
       use b2mod_openmp
       use b2mod_subsys
@@ -57,12 +58,14 @@ c
       integer, save :: kwrite_fmt = -1                                !srv 18.03.10
       integer, save :: kwrite_bnr = -1                                !srv 18.03.10
       integer, save :: b2swtest=0
+      integer, save :: style=2
       save ncall, nwrite
 #ifdef _OPENMP
 !!FR Make all the save and common block variables threadprivate
 !$OMP THREADPRIVATE (ncall, nwrite)
 !$OMP THREADPRIVATE (/ma28fd/,/ma28hd/)
 !$OMP THREADPRIVATE (kwrite_fmt, kwrite_bnr, b2swtest)
+!$OMP THREADPRIVATE (style)
 #endif
       data ncall /0/, nwrite /0/
 
@@ -77,6 +80,7 @@ c
 *  ---------------------------------------------------------------------
 
       if(ncall.eq.0) then
+       call ipgeti ('b2ux5p_style', style)
        call ipgeti ('ma28_nwrite', nwrite)
        call ipgeti ('ma28_ilutern_kwrite_fmt', kwrite_fmt)            !srv 18.05.02
        call ipgeti ('ma28_ilutern_kwrite_bnr', kwrite_bnr)            !srv 18.05.02
@@ -256,6 +260,18 @@ cdpc
         end if
       end if
 cdpc
+      if (style.eq.3) then
+        call pardiso_solve(5,name,n,nz,irnh_5p(1:nz),
+     &    icnh_5p(1:nz),a1h_5p(1:nz),r1_5p(1:n),s1_5p(1:n))
+        do k=1,n
+          j=(k-1)/n1+1
+          i=k-(j-1)*n1
+          sol(i,j)=s1_5p(k)
+        enddo
+        ncall=ncall+1
+        call subend()
+        return
+      endif
       if(nltrsol_5p.eq.0) then
       elseif(nltrsol_5p.eq.1) then
         WRITE(6,*) 'ILUTERN'

@@ -3,6 +3,7 @@
       use b2mod_version
       use b2mod_geo
       use b2mod_ma28
+      use b2mod_pardiso, only: pardiso_finish
       use b2mod_plasma
       use b2mod_rates
       use b2mod_residuals
@@ -4163,6 +4164,7 @@ cxpb Copy the IDS to a temporary location with the new DD and then bring it back
       deallocate(lnlam, cssb, fna_53)
       call dealloc_b2mod_diag
       call dealloc_b2mod_ma28
+      call pardiso_finish()
       call dealloc_b2mod_mrel
       call dealloc_b2mod_wall
       call dealloc_b2mod_zhco

@@ -4052,8 +4052,9 @@
 				<default>2</default>
 				<type>integer</type>
 				<description>
-					Choose the type of 5-point stencil matrix solver. Style.eq.0 = iluter, Style.eq.1 = slv5pt, Style.eq.2 = MA28.
-					NOTE: Only style.eq.2 will give good results. Other values are NOT recommended! style.eq.0 and style.eq.1 are only applicable to linear geometries with no cuts and no isolated regions.
+					Choose the type of 5-point stencil matrix solver. Style.eq.0 = iluter, Style.eq.1 = slv5pt, Style.eq.2 = MA28 (default), Style.eq.3 = optional MKL PARDISO.
+					Style.eq.0 and style.eq.1 are not recommended and are only applicable to linear geometries with no cuts and no isolated regions.
+					PARDISO requires SOLPS_PARDISO, an LP64 MKL library, a Fortran 2003 compiler and a build without OpenMP; coupled MPI runs are supported. Selecting it in an unsupported build stops with an error. It uses the existing sparse assembly workspace, the explicit WG solver parameters and a componentwise backward-error limit of 1.e-10. Each matrix receives fresh analysis, factorization and solve, followed by release of the MKL memory. Equation/species statistics are printed and their storage released at the end of the run. This option does not select a backend for the other stencil sizes.
 				</description>
 			</switch>
 			<switch>
@@ -4061,8 +4062,8 @@
 				<default>2</default>
 				<type>integer</type>
 				<description>
-				Choose the type of 7-point stencil matrix solver. Style.eq.0 = iluter, Style.eq.1 = slv5pt, Style.eq.2 = MA28copy3. Style.eq.3 = SDRV from YSMP.
-				NOTE: Only style.eq.2 will give good results. Applying style.eq.3 should be corrected and is no longer recommended. It might give slow convergence or even divergence of the potential equation. Other values are NOT recommended! style.eq.0 .or. style.eq.1 will return an error.
+				Choose the type of 7-point stencil matrix solver. Style.eq.0 = iluter, Style.eq.1 = slv5pt, Style.eq.2 = MA28copy3 (default), Style.eq.3 = SDRV from YSMP, Style.eq.4 = optional MKL PARDISO.
+				Style.eq.3 is not recommended; it might give slow convergence or even divergence of the potential equation. Style.eq.0 and style.eq.1 return an error. Style.eq.4 has the same build requirements, validation and context lifetime as the 5-point PARDISO option. The PARDISO backward-error limit is 1.e-10 and is independent of ma28_for_7d_prec. The 5-, 9- and 11-point solver selections remain independent.
 				</description>
 			</switch>
 			<switch>

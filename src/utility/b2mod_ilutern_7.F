@@ -7,6 +7,7 @@
      . ASO1, ASO, AWE, ACP, AEA, ANO, ANO1, RHS, SOL, name)        !srv 11.01.00
       use b2mod_types
       use b2mod_ma28_for_7diag
+      use b2mod_pardiso, only: pardiso_solve
       use b2mod_indirect
       use b2mod_openmp
       use b2mod_subsys
@@ -71,11 +72,13 @@ c
 #endif
 
       integer ncall, nwrite
+      integer, save :: style=2
       integer, save :: kwrite_fmt = -1                             !srv 18.05.02
       integer, save :: kwrite_bnr = -1                             !srv 18.05.02
       save ncall, nwrite
 #ifdef _OPENMP
 !$OMP THREADPRIVATE(ncall, nwrite)
+!$OMP THREADPRIVATE(style)
 !$OMP THREADPRIVATE(kwrite_fmt, kwrite_bnr)
 #endif
       data ncall /0/, nwrite /0/
@@ -90,6 +93,7 @@ c
 *  ---------------------------------------------------------------------
 
       if(ncall.eq.0) then
+        call ipgeti ('b2ux7p_style', style)
         call ipgeti ('ma28_for_7d_nwrite', nwrite)
         call ipgeti ('ma28_for_7d_kwrite_fmt', kwrite_fmt)          !srv 18.05.02
         call ipgeti ('ma28_for_7d_kwrite_bnr', kwrite_bnr)          !srv 18.05.02
@@ -229,6 +233,18 @@ c       IF (A1HN.EQ.0.0e0_R8) THEN
         enddo
         close(82)
       endif                                                    !srv 18.05.02 }
+      if (style.eq.4) then
+        call pardiso_solve(7,name,n,nz,irnh_7p(1:nz),
+     &    icnh_7p(1:nz),a1h_7p(1:nz),r1_7p(1:n),s1_7p(1:n))
+        do k=1,n
+          j=(k-1)/n1+1
+          i=k-(j-1)*n1
+          sol(i,j)=s1_7p(k)
+        enddo
+        ncall=ncall+1
+        call subend()
+        return
+      endif
 cdpc
       if(nwrite.gt.0) then
         if(nwrite.gt.ncall) then

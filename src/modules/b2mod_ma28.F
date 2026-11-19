@@ -1,5 +1,6 @@
       module b2mod_ma28
       use b2mod_types
+      use b2mod_pardiso, only: pardiso_require
       implicit none
 
       integer, allocatable, save :: iwrk_5p(:)
@@ -147,10 +148,11 @@ cxpb loop to avoid errors when using OpenMP parallelization.
 !$OMP& PRIVATE(ix, iy)
 #endif
       call ipgeti ('b2ux5p_style', style)
-      call xertst (0.le.style.and.style.lt.3,
+      call xertst (0.le.style.and.style.lt.4,
      &  'faulty internal parameter style')
+      if (style.eq.3) call pardiso_require()
       write(*,*) 'Allocating space for solver'
-      if(style.eq.2) then
+      if(style.eq.2.or.style.eq.3) then
         mult_nonzero=10
         mult_solvdim=15
         mult_solvdim1=10

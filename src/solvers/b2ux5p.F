@@ -101,7 +101,7 @@
 *   ..set internal parameters on first call
       if (ncall.eq.0) then
        call ipgeti ('b2ux5p_style', style)
-       call xertst (0.le.style.and.style.lt.3,
+       call xertst (0.le.style.and.style.lt.4,
      &   'faulty internal parameter style')
        call ipgetr ('b2ux5p_acpar', acpar)
        call xertst (0.lt.acpar, 'faulty internal parameter acpar')
@@ -135,8 +135,8 @@
         call slv5pt (nx+2, ny+2, aa5, resfun, iters, corfun, nrmc,
      &   min(nx+2,ny+2), aaf_5p, wrk0_5p, iwrk_5p)
        endif
-      else if (style.eq.2) then
-*    ..use ma28
+      else if (style.eq.2.or.style.eq.3) then
+*    ..assemble the sparse system for MA28 or PARDISO
         call ilutern(NX+2, NY+2, NX+2,
      1   aa5(-1,-1,-2), aa5(-1,-1,-1), aa5(-1,-1,0),
      2   aa5(-1,-1,1), aa5(-1,-1,2),

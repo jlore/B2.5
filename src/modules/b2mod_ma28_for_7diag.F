@@ -1,5 +1,6 @@
       module b2mod_ma28_for_7diag                                 !sv 11.01.00
       use b2mod_types
+      use b2mod_pardiso, only: pardiso_require
       use b2mod_ysmp_sdrv
       implicit none
 
@@ -150,11 +151,12 @@ cxpb loop to avoid errors when using OpenMP parallelization.
 !$OMP& SHARED(nx, ny, n2)
 #endif
       call ipgeti ('b2ux7p_style', style)
-      call xertst (0.le.style.and.style.lt.4,
+      call xertst (0.le.style.and.style.lt.5,
      &  'faulty internal parameter style')
+      if (style.eq.4) call pardiso_require()
       write(*,*)
      .  'Allocating space for solver for 7-point stencil matrix'  !srv 11.01.00
-      if(style.eq.2) then
+      if(style.eq.2.or.style.eq.4) then
         mult_nonzero=10
         mult_solvdim=15
         mult_solvdim1=10
