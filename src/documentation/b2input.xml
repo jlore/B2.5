@@ -3312,7 +3312,7 @@
 				<default>0</default>
 				<type>integer</type>
 				<description>
-					Controls additional output to b2time.nc.  If 2dwrite.ge.1 then a few 2d arrays (ne, Te, Ti) are written with each write to b2time.nc. If 2dwrite.ge.2 then fluxes, electric potential, kinetic energy, and fluid particle and energy source terms are also included (e.g., rsana, rsahi, rqrad).
+					Controls additional output to b2time.nc. Values 1 and 2 write na2d, ne2d, te2d, and ti2d; value 2 also writes fluxes, electric potential, kinetic energy, and fluid particle and energy source terms. ORNL-only coupled output: any nonzero value also writes tflux; values 1 and 2 add available EIRENE pdena, pdenm, edena, edenm on triangles and eneutrad, emolrad, eionrad on the B2 mesh. Values -1 and -2 request only tflux in addition to the standard histories. Particle and energy densities retain EIRENE units cm^-3 and eV cm^-3, and radiation is W per B2 cell summed over strata. Missing optional fields are added when appending; previous records retain fill values. Default 0 is unchanged.
 				</description>
 			</switch>
 			<switch>
@@ -5919,55 +5919,50 @@
 			</switch>
 			<switch>
 				<name>TIME_DEP_PUFF</name>
-				<default>.false. for all strata</default>
-				<type>logical array of length (NSTRAT)</type>
+				<default>.false.</default>
+				<type>logical array of size (NSTRAT)</type>
 				<description>
-					Indicates whether a stratum is a time-dependent gas puff. Should only be .true. for strata defined as gas puffs.
+					Enables a time-dependent gas puff for a C stratum in coupled runs. TIME_DEP_PUFF_FUNC selects an analytic function or interpolation of GPDATA. The forcing uses simulation time in seconds.
 				</description>
 			</switch>
 			<switch>
 				<name>TIME_DEP_PUFF_FUNC</name>
-				<default>.false. for all strata</default>
-				<type>logical array of length (NSTRAT)</type>
+				<default>.false.</default>
+				<type>logical array of size (NSTRAT)</type>
 				<description>
-					Indicates whether a stratum is using a time-dependent gas puff function. Should only be .true. for strata defined as gas puffs. For use with TIME_DEP_PUFF_CASE and TIME_DEP_PUFF_PARAM.
+					If TIME_DEP_PUFF is true, selects an analytic function when true and a table when false. Analytic functions do not require NGPDATA or GPDATA.
 				</description>
 			</switch>
 			<switch>
 				<name>TIME_DEP_PUFF_CASE</name>
-				<default>-1 for all strata</default>
-				<type>integer array of length (NSTRAT)</type>
+				<default>-1</default>
+				<type>integer array of size (NSTRAT)</type>
 				<description>
-					Used to select the functional form of the time-dependent gas puff function. For use with TIME_DEP_PUFF_FUNC and TIME_DEP_PUFF_PARAM.
+					Selects the analytic gas-puff function: 0 sinusoidal, 1 alternating plateau and ramp, 2 linear, 3 linear plus sinusoidal, 4 staircase, 5 triangle wave. Requires TIME_DEP_PUFF and TIME_DEP_PUFF_FUNC.
 				</description>
 			</switch>
 			<switch>
 				<name>TIME_DEP_PUFF_PARAM</name>
-				<default>0 for all strata</default>
-				<type>real array of length (NSTRAT)</type>
+				<default>0.0</default>
+				<type>real array of size (10,NSTRAT)</type>
 				<description>
-					Used to set the parameters for the functional form of the time-dependent gas puff function. For use with TIME_DEP_PUFF_FUNC and TIME_DEP_PUFF_CASE.
+					Function parameters in stratum order. Cases 0 and 3 use offset (particles/s), amplitude (particles/s), frequency (Hz), and phase (rad); case 3 also uses a fifth parameter for slope (particles/s^2). Case 1 uses offset, step size, and plateau/ramp duration (s). Case 2 uses offset and slope. Case 4 uses offset, step size, and step duration (s). Case 5 uses offset, amplitude, period (s), and time shift (s). Durations and periods must be positive.
 				</description>
 			</switch>
 			<switch>
 				<name>NGPDATA</name>
 				<default>0</default>
-				<type>integer data of size (NSTRAT)</type>
+				<type>integer array of size (NSTRAT)</type>
 				<description>
-					Number of points over which the time profile of the strength of gas puff (istra) is given. Defaults to 0. Current maximum value is 100.
+					Number of time/strength pairs for each tabulated gas puff, from 1 to 1001. Not required for analytic puff functions.
 				</description>
 			</switch>
 			<switch>
 				<name>GPDATA</name>
 				<default>0.0</default>
-				<type>real data of size (NGPDATA,2,NSTRAT)</type>
+				<type>real array of size (1001,2,NSTRAT)</type>
 				<description>
-					For (i,ik,istra) in (1:NGPDATA(istra),1:2,1:NSTRAT),
-					GPDATA(i,1,istra) contains the time point (i) for stratum (istra) (in s).
-					GPDATA(i,2,istra) contains the gas puff strength of stratum (istra) at time point (i) (in particles/s).
-					The gas puff strength before the first time point is given by USERFLUXPARM(istra,1).
-					The gas puff strength after the last time point is given by the GPDATA value of the last time point.
-					Otherwise, the gas puff strength is linearly interpolated from the given data.
+					Tabulated puff time (second index 1, seconds) and particle rate (second index 2, particles/s). Times must increase strictly and rates must be nonnegative. Linear interpolation is used between points, USERFLUXPARM supplies the rate before the first time, and the final rate is held at and after the last time.
 				</description>
 			</switch>
 			<!-- The following note is to help with documentation!-->
@@ -6400,6 +6395,30 @@
 				<type>real array of size (NBC,2)</type>
 				<description>
 					Contains parameters helping to define the boundary conditions for the ion energy equation. See description of BCENI below for details.
+				</description>
+			</switch>
+			<switch>
+				<name>TIME_DEP_POWER</name>
+				<default>.false.</default>
+				<type>logical</type>
+				<description>
+					ORNL-only fixed sine-power option. On S boundaries with BCENE=8 or BCENI=8, the corresponding channel receives 3 MW + 0.5 MW sin(2 pi 8 t), with t in seconds. This global option cannot be combined with POWER_TIME_DEP_CASE. It does not enable the parameterized ramp.
+				</description>
+			</switch>
+			<switch>
+				<name>POWER_TIME_DEP_CASE</name>
+				<default>-1</default>
+				<type>integer array of size (NBC)</type>
+				<description>
+					ORNL-only power function. Case 2 enables a bounded linear ramp on an S boundary with BCENE=8 and BCENI=8. The default -1 keeps the supplied ENEPAR and ENIPAR settings. TIME_DEP_POWER must be false.
+				</description>
+			</switch>
+			<switch>
+				<name>POWER_TIME_DEP_PARAM</name>
+				<default>0.0</default>
+				<type>real array of size (4,2,NBC)</type>
+				<description>
+					For case 2, contains start power (W), end power (W), start time (s), and end time (s). Channel 1 is electrons and channel 2 is ions. End time must exceed start time and both powers must be nonnegative. The start power is held before the ramp and the end power afterwards.
 				</description>
 			</switch>
 			<switch>

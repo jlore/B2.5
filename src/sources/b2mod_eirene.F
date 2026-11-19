@@ -824,7 +824,7 @@ cwdk ingoing fluxes will be cut off on the EIRENE side
             else !if time_dep_puff_func
              if (tim.lt.gpdata(1,1,istrai)) then
               tflux(istrai)=userfluxparm(istrai,1)
-             else if (tim.gt.gpdata(ngpdata(istrai),1,istrai)) then
+             else if (tim.ge.gpdata(ngpdata(istrai),1,istrai)) then
               tflux(istrai)=gpdata(ngpdata(istrai),2,istrai)
              else
               ib=1

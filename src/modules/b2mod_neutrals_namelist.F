@@ -67,6 +67,7 @@ cank }
       parameter (natmid=DEF_NATM, nmolid=DEF_NMOL, nionid=DEF_NION)
       parameter (nstsid=DEF_NSTS)
       parameter (nlimpsd=DEF_NLIM+DEF_NSTS)
+      integer, parameter :: ngpdatamax = 1001
 #ifdef ALLOCATE_AND_NAMELIST
       real (kind=R8), allocatable, save ::
      *   RECYC(:,:), ERECYC(:,:),
@@ -112,7 +113,7 @@ cank }
       real (kind=R8), save :: saved_volrec(NSTRAID)
       real (kind=R8), save :: chem_sput(0:nsdmax-1,NSTRAID)
       real (kind=R8), save :: phys_sput(0:nsdmax-1,NSTRAID)
-      real (kind=R8), save :: gpdata(100,2,NSTRAID)
+      real (kind=R8), save :: gpdata(ngpdatamax,2,NSTRAID)
       real (kind=R8), save :: time_dep_puff_param(10,NSTRAID)
       character*16, save ::
      *   textan(0:DEF_NATM-1),
@@ -252,7 +253,7 @@ csw 21feb2012
       allocate(time_dep_puff_case(NSTRAID))
       allocate(time_dep_puff_param(10,NSTRAID))
       allocate(NGPDATA(NSTRAID))
-      allocate(GPDATA(100,2,NSTRAID))
+      allocate(GPDATA(ngpdatamax,2,NSTRAID))
       allocate(CRCSTRA(NSTRAID))
       allocate(species_start(NSTRAID))
       allocate(species_end(NSTRAID))
@@ -798,17 +799,27 @@ c
         if (time_dep_puff(istra)) then
           call xertst(crcstra(istra).eq.'C',
      .     'Time_dep_puff set for a non-puff stratum')
-          call xertst(ngpdata(istra).gt.0,
-     .     'Time_dep_puff data list size not declared')
-          call xertst(ngpdata(istra).le.100,
-     .     'Time_dep_puff data list size too large')
-          do ix = 1, ngpdata(istra)
-            call xertst(gpdata(ix,2,istra).ge.0.0_R8,
-     .       'Negative gas puff strength declared!')
-          end do
           if (time_dep_puff_func(istra)) then
-             call xertst(crcstra(istra).eq.'C',
-     .     'time_dep_puff_func set for a non-puff stratum')
+            call xertst(time_dep_puff_case(istra).ge.0.and.
+     .        time_dep_puff_case(istra).le.5,
+     .        'bad value for time_dep_puff_case')
+            if (time_dep_puff_case(istra).eq.1.or.
+     .          time_dep_puff_case(istra).eq.4.or.
+     .          time_dep_puff_case(istra).eq.5)
+     .        call xertst(time_dep_puff_param(3,istra).gt.0.0_R8,
+     .          'time-dependent puff period must be positive')
+          else
+            call xertst(ngpdata(istra).gt.0,
+     .        'Time_dep_puff data list size not declared')
+            call xertst(ngpdata(istra).le.ngpdatamax,
+     .        'Time_dep_puff data list size too large')
+            do ix = 1, ngpdata(istra)
+              call xertst(gpdata(ix,2,istra).ge.0.0_R8,
+     .          'Negative gas puff strength declared!')
+              if (ix.gt.1) call xertst(gpdata(ix,1,istra).gt.
+     .          gpdata(ix-1,1,istra),
+     .          'Time_dep_puff times must increase')
+            end do
           endif
         endif
       enddo

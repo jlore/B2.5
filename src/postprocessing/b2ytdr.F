@@ -2589,6 +2589,21 @@ c 2002-09-11: logic revised
         write(99, hlp_frm) 'ENIPAR(1,1)=',(enipar(ib,1),ib=1,nbc1)
         if (maxval(abs(enipar(1:nbc1,2))).gt.0.0_R8)
      >   write(99, hlp_frm) 'ENIPAR(1,2)=',(enipar(ib,2),ib=1,nbc1)
+c       Power functions retain the boundary numbering and total W.
+        if (time_dep_power) write(99,'(1x,a)')
+     .    'TIME_DEP_POWER=.true.,'
+        do ib = 1, nbc1
+          if (power_time_dep_case(ib).eq.2) then
+            write(99,'(1x,a,i2,a,i2,a)')
+     .        'POWER_TIME_DEP_CASE(',ib,')=',
+     .        power_time_dep_case(ib),','
+            do ic = 1, 2
+              write(99,'(1x,a,i1,a,i2,a,1p,4(e24.16,'',''))')
+     .          'POWER_TIME_DEP_PARAM(1:4,',ic,',',ib,')=',
+     .          power_time_dep_param(1:4,ic,ib)
+            enddo
+          endif
+        enddo
         write(99, hlp_frm) 'POTPAR(1,1)=',(potpar(ib,1),ib=1,nbc1)
         if (maxval(abs(potpar(1:nbc1,2))).gt.0.0_R8)
      >   write(99, hlp_frm) 'POTPAR(1,2)=',(potpar(ib,2),ib=1,nbc1)
@@ -11035,7 +11050,7 @@ cxpb  Convert fort.46 file if needed
         allocate(ngpdata1(nstrat1))
         allocate(lsns1(DEF_NSRFS*nstrat1))
         allocate(ksns1(nstrat1))
-        allocate(gpdata1(100,2,nstrat1))
+        allocate(gpdata1(ngpdatamax,2,nstrat1))
         do ib = 1, nstrat
          if (savestratum(ib) .or. crcstra(ib).eq.'T') then
           ib1 = istra1(ib)

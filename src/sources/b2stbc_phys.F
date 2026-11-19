@@ -6279,6 +6279,8 @@ cxpb code segment analog to b2tfhe
      1     ' on ',BCCHAR(IB),boundary_location(ib)
         endif
         IF(BCCHAR(IB).EQ.'S') THEN
+          if (time_dep_power.or.power_time_dep_case(ib).eq.2)
+     .      ENEPAR(IB,1) = power_time_dep_value(tim,ib,1)
           US = 0.0_R8
           DO IX = 1, BC_LIST_SIZE(IB)
             US=US+SY(BC_LIST_X(IX,IB),BC_LIST_Y(IX,IB))
@@ -8372,6 +8374,8 @@ cxpb code segment analog to b2tfhi
      1     BCCHAR(IB),boundary_location(ib)
         endif
         IF(BCCHAR(IB).EQ.'S') THEN
+          if (time_dep_power.or.power_time_dep_case(ib).eq.2)
+     .      ENIPAR(IB,1) = power_time_dep_value(tim,ib,2)
           US = 0.0_R8
           DO IX = 1, BC_LIST_SIZE(IB)
             US=US+SY(BC_LIST_X(IX,IB),BC_LIST_Y(IX,IB))

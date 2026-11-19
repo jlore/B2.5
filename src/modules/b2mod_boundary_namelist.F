@@ -18,7 +18,7 @@ cank }
      *   ENEPAR(:,:),
      *   ENIPAR(:,:),
      *   POTPAR(:,:),
-     *   NIISO(:)
+     *   NIISO(:), power_time_dep_param(:,:,:)
       integer, allocatable, save ::
      *   BCPOS(:),
      *   BCSTART(:),
@@ -35,7 +35,7 @@ cank }
      *   lcbs(:),
      *   BC_LIST_SIZE(:),
      *   BC_LIST_X(:,:),
-     *   BC_LIST_Y(:,:)
+     *   BC_LIST_Y(:,:), power_time_dep_case(:)
       character*1, allocatable, save ::
      *   BCCHAR(:)
       character*256, allocatable, save :: con_fn(:,:)
@@ -87,6 +87,8 @@ cank }
       real (kind=R8), save :: profile_ene(-1:DEF_NYD,nbcd)
       real (kind=R8), save :: profile_pot(-1:DEF_NYD,nbcd)
       logical, save :: core_boundary(NBCD)
+      integer, save :: power_time_dep_case(NBCD)
+      real (kind=R8), save :: power_time_dep_param(4,2,NBCD)
 #endif
       integer, save :: boundary_namelist
       logical, save :: boundary_namelist_set = .false.
@@ -105,6 +107,7 @@ csw 18feb2014 added for correct implementation of boundary conditions
       real (kind=R8), save :: boundary_time_switch
       integer, save :: bc_elm_count
       logical, save :: new_boundary_files
+      logical, save :: time_dep_power = .false.
 
       private :: boundary
 
@@ -115,9 +118,34 @@ csw 18feb2014 added for correct implementation of boundary conditions
      3 NNISO,NIISO,TEISO,TIISO,PHIISO,NXISO1,NXISO2,NYISO1,NYISO2,
      4 bcchar,
      5 boundary_filename,boundary_time_mod,boundary_time_switch,
-     6 lcbs, write_nml_bnd, con_fn, mom_fn, ene_fn, eni_fn, pot_fn
+     6 lcbs, write_nml_bnd, con_fn, mom_fn, ene_fn, eni_fn, pot_fn,
+     7 time_dep_power, power_time_dep_case, power_time_dep_param
 
       contains
+
+c     Parameters are start/end power in W and start/end time in s.
+c     Channel 1 is electrons, channel 2 is ions. Evaluate absolute
+c     power so repeated boundary calls cannot accumulate increments.
+      function power_time_dep_value(tim, ib, channel) result(power)
+      use b2mod_constants, only : pi
+      implicit none
+      real (kind=R8), intent(in) :: tim
+      integer, intent(in) :: ib, channel
+      real (kind=R8) :: power, fraction
+
+      if (time_dep_power) then
+c       Fixed waveform used by the ORNL sine-power input option.
+        power = 3.0e6_R8 + 0.5e6_R8*sin(2.0_R8*pi*8.0_R8*tim)
+        return
+      endif
+      fraction = min(1.0_R8, max(0.0_R8,
+     . (tim-power_time_dep_param(3,channel,ib))/
+     . (power_time_dep_param(4,channel,ib)-
+     .  power_time_dep_param(3,channel,ib))))
+      power = power_time_dep_param(1,channel,ib) + fraction*
+     . (power_time_dep_param(2,channel,ib)-
+     .  power_time_dep_param(1,channel,ib))
+      end function power_time_dep_value
 
       subroutine get_boundary_namelist
       implicit none
@@ -345,8 +373,10 @@ cxpb overwrite the defaults with the namelist data
       allocate(profile_mom(-1:NYD,0:nsd-1,nbcd_in))
       allocate(profile_eni(-1:NYD,nbcd_in))
       allocate(profile_ene(-1:NYD,nbcd_in))
-      allocate(profile_enp(-1:NYD,nbcd_in))
+      allocate(profile_pot(-1:NYD,nbcd_in))
       allocate(core_boundary(nbcd_in))
+      allocate(power_time_dep_case(nbcd_in))
+      allocate(power_time_dep_param(4,2,nbcd_in))
 #else
       call xertst (nxd.le.DEF_NXD, 'faulty parameter nxd')
       call xertst (nyd.le.DEF_NYD, 'faulty parameter nyd')
@@ -374,6 +404,9 @@ cxpb overwrite the defaults with the namelist data
       bcene=0
       bceni=0
       bcpot=0
+      time_dep_power=.false.
+      power_time_dep_case=-1
+      power_time_dep_param=0.0_R8
       conpar=0.0_R8
       mompar=0.0_R8
       enepar=0.0_R8
@@ -486,6 +519,8 @@ cxpb Have to do this here already in case the namelist is not used
       deallocate(profile_eni)
       deallocate(profile_pot)
       deallocate(core_boundary)
+      deallocate(power_time_dep_case)
+      deallocate(power_time_dep_param)
 #endif
       deallocate(iffboundx)
       deallocate(iffboundy)
@@ -779,6 +814,24 @@ c.. Make a list of core boundaries
         call xertst (0.le.bcene(ib), 'faulty input bcene')
         call xertst (0.le.bceni(ib), 'faulty input bcene')
         call xertst (0.le.bcpot(ib), 'faulty input bcpot')
+c       Both channels use prescribed total power on an S boundary.
+        if (power_time_dep_case(ib).ne.-1) then
+          call xertst (power_time_dep_case(ib).eq.2,
+     .      'unsupported power_time_dep_case')
+          call xertst (.not.time_dep_power,
+     .      'power ramp conflicts with time_dep_power')
+          call xertst (bcchar(ib).eq.'S'.and.bcene(ib).eq.8
+     .      .and.bceni(ib).eq.8,
+     .      'power ramp requires S BCENE=8 and BCENI=8')
+          do ic = 1, 2
+            call xertst (power_time_dep_param(4,ic,ib).gt.
+     .        power_time_dep_param(3,ic,ib),
+     .        'power ramp end time must exceed start time')
+            call xertst (minval(power_time_dep_param(1:2,ic,ib))
+     .        .ge.0.0_R8,
+     .        'power ramp powers must be nonnegative')
+          enddo
+        endif
       enddo
       do ib = 1, nniso
         call xertst (-1.le.nxiso1(ib).and.nxiso1(ib).le.nx,

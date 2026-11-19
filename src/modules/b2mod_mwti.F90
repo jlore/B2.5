@@ -68,6 +68,11 @@ contains
     use b2mod_external
 #ifdef B25_EIRENE
     use eirmod_wneutrals  ! IGNORE
+    use b2mod_neutr_src_scaling, only : tflux
+    use eirmod_cestim, only : pdena, pdenm, edena, edenm, & ! IGNORE
+      lpdena, lpdenm, ledena, ledenm
+    use eirmod_comusr, only : natmi, nmoli, nioni ! IGNORE
+    use eirmod_ctrig, only : ntrii ! IGNORE
 #endif
     implicit none
     !   ..input arguments (unchanged on exit)
@@ -213,7 +218,7 @@ contains
       !   ..test state
       call get_jsep(nx,ny,jxi,jxa,jsep)
       call ipgeti ('b2mwti_2dwrite',write_2d)
-      call xertst (0.le.write_2d.and.write_2d.le.2,'faulty internal parameter write_2d')
+      call xertst (-2.le.write_2d.and.write_2d.le.2,'faulty internal parameter write_2d')
       call ipgeti ('b2mwti_target_offset',target_offset)
       call xertst (0.le.target_offset.and.target_offset.le.1,'faulty internal parameter target_offset')
       write(*,*) 'target_offset ', target_offset
@@ -396,6 +401,9 @@ contains
           iret = nf_open(trim(filename),or(NF_WRITE,NF_SHARE),ncid)
           call check_cdf_status(iret)
         end if
+#ifdef B25_EIRENE
+        if (write_2d.ne.0) call define_neutral_timecdf(ncid,write_2d,nx,ny)
+#endif
         write(*,*) 'ntstep = ', ntstep
         rw='write'
         imap(1)=1
@@ -1493,6 +1501,12 @@ contains
         call rwcdf(rw,ncid,'dsTRP',imap,dsTRP(iytrstrt:iytrend),iret)
       endif
       call rwcdf(rw,ncid,'timesa',imap,timesa,iret)
+#ifdef B25_EIRENE
+      ! Strata are indexed as in b2.neutrals.parameters.
+      imap=1
+      if (write_2d.ne.0.and.nstrat.gt.0) &
+        call rwcdf(rw,ncid,'tflux',imap,tflux(1:nstrat),iret)
+#endif
       if (write_2d .ge. 1) then
         imap(1)=1
         imap(2)=1
@@ -1503,6 +1517,27 @@ contains
         call rwcdf(rw,ncid,'ne2d',imap,ne,iret)
         call rwcdf(rw,ncid,'te2d',imap,te,iret)
         call rwcdf(rw,ncid,'ti2d',imap,ti,iret)
+#ifdef B25_EIRENE
+        ! Pack active species and triangles, excluding capacity padding.
+        ! EIRENE densities retain cm^-3 and eV cm^-3 units.
+        if (ntrii.gt.0) then
+          if (natmi.gt.0) then
+            if (lpdena) call rwcdf(rw,ncid,'pdena',imap,pdena(1:natmi,1:ntrii),iret)
+            if (ledena) call rwcdf(rw,ncid,'edena',imap,edena(1:natmi,1:ntrii),iret)
+          endif
+          if (nmoli.gt.0) then
+            if (lpdenm) call rwcdf(rw,ncid,'pdenm',imap,pdenm(1:nmoli,1:ntrii),iret)
+            if (ledenm) call rwcdf(rw,ncid,'edenm',imap,edenm(1:nmoli,1:ntrii),iret)
+          endif
+        endif
+        ! Stratum zero sums all sources; radiation is W per B2 cell.
+        if (natmi.gt.0) &
+          call rwcdf(rw,ncid,'eneutrad',imap,eneutrad(0:nx+1,0:ny+1,1:natmi,0),iret)
+        if (nmoli.gt.0) &
+          call rwcdf(rw,ncid,'emolrad',imap,emolrad(0:nx+1,0:ny+1,1:nmoli,0),iret)
+        if (nioni.gt.0) &
+          call rwcdf(rw,ncid,'eionrad',imap,eionrad(0:nx+1,0:ny+1,1:nioni,0),iret)
+#endif
         if (write_2d .ge. 2) then
           call rwcdf(rw,ncid,'po2d',imap,po,iret)
           call rwcdf(rw,ncid,'kin2d',imap,kinrgy,iret)
@@ -4774,6 +4809,122 @@ contains
     call check_cdf_status(iret)
     return
   end subroutine b2crtimecdf
+
+#ifdef B25_EIRENE
+  ! Add optional coupled diagnostics, including when appending to a file
+  ! created without them. Existing records of new fields remain fill values.
+#ifndef SOLPS4_3
+  subroutine define_neutral_timecdf(ncid,write_2d,nx,ny)
+    use b2mod_neutrals_namelist, only : nstrat
+    use eirmod_comusr, only : natmi, nmoli, nioni ! IGNORE
+    use eirmod_ctrig, only : ntrii ! IGNORE
+    use eirmod_cestim, only : lpdena, lpdenm, ledena, ledenm ! IGNORE
+    implicit none
+#   include <netcdf.inc>
+    integer, intent(in) :: ncid, write_2d, nx, ny
+    integer :: iret, timedim, nstratdim, ntriidim
+    integer :: nxdim, nydim, natmidim, nmolidim, nionidim
+    external check_cdf_status, xertst
+
+    iret = nf_redef(ncid)
+    call check_cdf_status(iret)
+    iret = nf_inq_dimid(ncid,'time',timedim)
+    call check_cdf_status(iret)
+    if (nstrat.gt.0) then
+      call ensure_dim('nstrat',nstrat,nstratdim)
+      call ensure_var('tflux',(/nstratdim,timedim/), &
+        'Source strength passed to EIRENE by stratum','s^-1')
+    endif
+    if (write_2d.ge.1) then
+      call ensure_dim('nx',nx+2,nxdim)
+      call ensure_dim('ny',ny+2,nydim)
+      if (ntrii.gt.0) call ensure_dim('ntrii',ntrii,ntriidim)
+      if (natmi.gt.0) then
+        call ensure_dim('natmi',natmi,natmidim)
+        if (ntrii.gt.0) then
+          if (lpdena) call ensure_var('pdena',(/natmidim,ntriidim,timedim/), &
+            'Atom particle density on EIRENE triangles','cm^-3')
+          if (ledena) call ensure_var('edena',(/natmidim,ntriidim,timedim/), &
+            'Atom energy density on EIRENE triangles','eV cm^-3')
+        endif
+        call ensure_var('eneutrad',(/nxdim,nydim,natmidim,timedim/), &
+          'Atom radiation summed over strata per B2 cell','W')
+      endif
+      if (nmoli.gt.0) then
+        call ensure_dim('nmoli',nmoli,nmolidim)
+        if (ntrii.gt.0) then
+          if (lpdenm) call ensure_var('pdenm',(/nmolidim,ntriidim,timedim/), &
+            'Molecule particle density on EIRENE triangles','cm^-3')
+          if (ledenm) call ensure_var('edenm',(/nmolidim,ntriidim,timedim/), &
+            'Molecule energy density on EIRENE triangles','eV cm^-3')
+        endif
+        call ensure_var('emolrad',(/nxdim,nydim,nmolidim,timedim/), &
+          'Molecule radiation summed over strata per B2 cell','W')
+      endif
+      if (nioni.gt.0) then
+        call ensure_dim('nioni',nioni,nionidim)
+        call ensure_var('eionrad',(/nxdim,nydim,nionidim,timedim/), &
+          'Test-ion radiation summed over strata per B2 cell','W')
+      endif
+    endif
+    iret = nf_enddef(ncid)
+    call check_cdf_status(iret)
+
+  contains
+
+    ! Reuse dimensions only when the active mesh and species counts agree.
+    subroutine ensure_dim(name,length,dimid)
+      character*(*), intent(in) :: name
+      integer, intent(in) :: length
+      integer, intent(out) :: dimid
+      integer :: status, old_length
+
+      status = nf_inq_dimid(ncid,name,dimid)
+      if (status.eq.NF_EBADDIM) then
+        status = nf_def_dim(ncid,name,length,dimid)
+        call check_cdf_status(status)
+      else
+        call check_cdf_status(status)
+        status = nf_inq_dimlen(ncid,dimid,old_length)
+        call check_cdf_status(status)
+        call xertst(old_length.eq.length, &
+          'b2time.nc dimension mismatch for '//name)
+      endif
+    end subroutine ensure_dim
+
+    ! Append-compatible fields must have the same type and dimension order.
+    subroutine ensure_var(name,dims,long_name,units)
+      character*(*), intent(in) :: name, long_name, units
+      integer, intent(in) :: dims(:)
+      integer :: status, varid, rank, vartype, old_dims(4)
+
+      status = nf_inq_varid(ncid,name,varid)
+      if (status.eq.NF_ENOTVAR) then
+        status = nf_def_var(ncid,name,NCDOUBLE,size(dims),dims,varid)
+        call check_cdf_status(status)
+      else
+        call check_cdf_status(status)
+        status = nf_inq_varndims(ncid,varid,rank)
+        call check_cdf_status(status)
+        call xertst(rank.eq.size(dims), &
+          'b2time.nc rank mismatch for '//name)
+        status = nf_inq_vardimid(ncid,varid,old_dims)
+        call check_cdf_status(status)
+        call xertst(all(old_dims(1:rank).eq.dims), &
+          'b2time.nc dimensions mismatch for '//name)
+        status = nf_inq_vartype(ncid,varid,vartype)
+        call check_cdf_status(status)
+        call xertst(vartype.eq.NCDOUBLE, &
+          'b2time.nc type mismatch for '//name)
+      endif
+      status = nf_put_att_text(ncid,varid,'long_name',len_trim(long_name),long_name)
+      call check_cdf_status(status)
+      status = nf_put_att_text(ncid,varid,'units',len_trim(units),units)
+      call check_cdf_status(status)
+    end subroutine ensure_var
+  end subroutine define_neutral_timecdf
+#endif
+#endif
 
   subroutine rwcdf(rw,ncid,data_name,imap,data_set,iret)
 #   include <netcdf.inc>
